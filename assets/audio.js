@@ -1,4 +1,4 @@
-const FILES={scare:'scream.mp3',come:'come-closer.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3'};
+const FILES={scare:'scream.mp3',come:'come-closer.mp3',secret:'secret.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3'};
 export class HorrorAudio {
  constructor(){this.context=null;this.output=null;this.voices=[];this.volume=.65;this.buffers=new Map();this.error=null;this.onStateChange=()=>{};this.prepare().catch(()=>{})}
  get ready(){return Object.keys(FILES).every(id=>this.buffers.has(id))}

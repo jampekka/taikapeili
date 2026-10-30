@@ -9,3 +9,5 @@ Whisper clips come-closer.mp3 and look-deeper.mp3 were generated once through Op
 Post-reveal laugh: user-supplied Nelson “Ha Ha” clip.
 https://www.myinstants.com/media/sounds/the-simpsons-nelsons-haha.mp3
 Downloaded unchanged 2026-10-30.
+
+secret.mp3: “Näytän sinulle salaisuuden, älä kerro tästä kellekään.” Generated once with the same ElevenLabs eleven-v4 Sarah voice/settings as the two existing whispers, via OpenRouter, 2026-10-30.

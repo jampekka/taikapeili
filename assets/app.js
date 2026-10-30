@@ -35,7 +35,14 @@ function playActiveCue(){
  updateAudioPrompt();updateDebug();
 }
 function cue(text,id,duration){activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;log(text);playActiveCue()}
-async function sequence(signal){log('Lead-in delay · 2s');await delay(startDelayMs,signal);cue('Tule lähemmäksi','come',comeMs);await delay(comeMs,signal);cue('Katso syvälle silmiisi','look',lookMs);await delay(lookMs,signal);activeCue=null;$('ritualText').hidden=true;log('Sequence finished');updateDebug()}
+async function sequence(signal){
+ log('Lead-in delay · 2s');await delay(startDelayMs,signal);
+ cue('Tule lähemmäksi.','come',comeMs);await delay(comeMs,signal);
+ const secretMs=Math.ceil(audio.duration('secret',6)*1000)+650;
+ cue('Näytän sinulle salaisuuden, älä kerro tästä kellekään.','secret',secretMs);await delay(secretMs,signal);
+ cue('Katso syvälle silmiisi.','look',lookMs);await delay(lookMs,signal);
+ activeCue=null;$('ritualText').hidden=true;log('Sequence finished');updateDebug();
+}
 async function loadDetector(){
  if(detector)return;
  await import('./vendor/face-api.min.js');const api=globalThis.faceapi;

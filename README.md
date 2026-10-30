@@ -1,12 +1,12 @@
 # The Other Side — Halloween mirror
 
-Dummy mode is the default on every page load. It makes no image API calls. The UI is a live mirrored camera, vanity lights and two Finnish text/whisper cues. Debug controls are at `?debug=1`.
+Dummy mode is the default on every page load. It makes no image API calls. The UI is a live mirrored camera, vanity lights and three Finnish text/whisper cues. Debug controls are at `?debug=1`.
 
 ## One run
 
 `assets/run.js` is the only lifecycle owner: idle → running → reveal → idle, or visible error. The first Tiny Face Detector result while armed starts a 2-second delay, then narration. In dummy mode it warms the masking model during the cues, then captures and processes the latest frame when the cues finish. In optional remote mode the initial snapshot and remote request still start alongside narration. Subsequent detections cannot start another run. While a run is active, optional debug detection only updates the overlay; it cannot start or cancel a run. A final live eye landmark pass aligns the reveal. One continuous second without a face cancels a pending sequence/image preparation. Position, size and resize do not cancel a run. Explicit page shutdown cancels it.
 
-The cues are “Tule lähemmäksi” immediately and “Katso syvälle silmiisi” at 3 seconds. The whisper sequence completes 9 seconds after detection (2-second delay, then 3+4-second cues). Text cues are hidden by default; debug can enable them. Dummy mode captures at that point; a single reveal follows as soon as local processing and final eye measurement finish. Remote mode retains the image/sequence completion barrier. The laugh starts 1.5 seconds after the reveal ends. The run stays disarmed until 3 continuous seconds without a face; a continuously present face cannot repeat it. There are no visitor IDs, cached stock scares, implicit retries, hidden backoffs or separate server busy locks. A preparation error is displayed with an explicit retry button.
+After the two-second lead-in, the whispers are “Tule lähemmäksi.”, “Näytän sinulle salaisuuden, älä kerro tästä kellekään.” and “Katso syvälle silmiisi.” The middle cue lasts for the decoded recording plus 650 ms; the surrounding cue slots remain 3 and 4 seconds. Text cues are hidden by default; debug can enable them. Dummy mode captures at that point; a single reveal follows as soon as local processing and final eye measurement finish. Remote mode retains the image/sequence completion barrier. The laugh starts 1.5 seconds after the reveal ends. The run stays disarmed until 3 continuous seconds without a face; a continuously present face cannot repeat it. There are no visitor IDs, cached stock scares, implicit retries, hidden backoffs or separate server busy locks. A preparation error is displayed with an explicit retry button.
 
 ## Dummy and reveal
 

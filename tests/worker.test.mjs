@@ -6,6 +6,7 @@ const make=(path,options={})=>new Request(origin+path,options);
 const config=await worker.fetch(make('/api/mirror/config'),env);const configText=await config.text();assert.equal(JSON.parse(configText).configured,true);assert.equal(configText.includes(env.OPENROUTER_API_KEY),false);
 const script=await worker.fetch(make('/app.js'),env);assert.match(script.headers.get('content-type'),/javascript/);assert.equal((await script.text()).includes(env.OPENROUTER_API_KEY),false);
 assert.equal((await worker.fetch(make('/'),env)).status,200);
+const secretAudio=await worker.fetch(make('/audio/secret.mp3'),env);assert.equal(secretAudio.status,200);assert.match(secretAudio.headers.get('content-type'),/audio\/mpeg/);assert.ok((await secretAudio.arrayBuffer()).byteLength>1000,'The new whisper must be bundled, not just referenced');
 assert.equal((await worker.fetch(make('/models/tiny_face_detector_model-shard1'),env)).status,200);
 const body={imageData:'data:image/jpeg;base64,ZmFrZQ==',model:env.IMAGE_MODEL,effect:'zombie',ratio:.75};
 const post=(overrides={})=>make('/api/mirror/edit',{method:'POST',headers:{'content-type':'application/json',origin,...overrides.headers},body:JSON.stringify({...body,...overrides.body})});
