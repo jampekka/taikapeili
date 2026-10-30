@@ -2,7 +2,7 @@ Scream: Female Scream Horror, NeoPhyTe, SoundBible.
 Source page: https://soundbible.com/1627-Female-Scream-Horror.html
 Original recording: https://soundbible.com/mp3/Female_Scream_Horror-NeoPhyTe-138499973.mp3
 The source listing labels this recording Public Domain. Retrieved 2026-10-30.
-Bundled edit: removed initial 105 ms silence, retained a 720 ms burst, loudness normalized, short fade-out. No other scare effects remain.
+Bundled edit: removed initial 105 ms silence, retained a 720 ms burst, loudness normalized, short fade-out. Retained as the Original selection.
 
 Whisper clips come-closer.mp3 and look-deeper.mp3 were generated once through OpenRouter with ElevenLabs eleven-v4, Sarah, Finnish, whispering instruction, 2026-10-30. These are bundled recordings, not runtime synthesis.
 
@@ -15,3 +15,5 @@ secret.mp3: “Näytän sinulle salaisuuden, älä kerro tästä kellekään.”
 warning.mp3: “Lähetä seuraava luokseni. Mutta jos spoilaat, kiroan sinut kahden asunnon loukkuun, puudutan sukupuolielimesi ja tilaan vanhemmillesi Elisa Viihteen.” Generated with ElevenLabs eleven-v4, Sarah, Finnish, repeated quiet direction and restrained menacing delivery via OpenRouter, 2026-10-30. Playback rendered at 0.88 speed without pitch shift and normalized to -20 LUFS.
 
 warning-private.mp3: “Älä kerro minusta kenellekään. Jos kerrot, niin kiroan sinut kahden asunnon loukkuun, puudutan sukupuolielimesi ja tilaan vanhemmillesi Elisa Viihteen.” Generated with the same ElevenLabs eleven-v4 Sarah quiet/menacing Finnish voice, via OpenRouter, 2026-10-30. Rendered at 0.88 speed without pitch shift and normalized to -20 LUFS.
+
+Selectable generated screams: scream-sharp.mp3, scream-shrill.mp3, scream-raw.mp3 (0.7 s each), scream-sharp-longer.mp3 (1.192 s). Generated once via OpenRouter with bytedance-seed/seed-audio-1-0 on 2026-10-30. Prompts requested one piercing, high-pitched adult female scream, dry isolated voice, no words, music or background sound. Sharp longer requests a complete natural release. Leading near-silence removed, peaks matched near -1.8 dBFS, short fades applied. All files are bundled; no runtime generation.

@@ -1,4 +1,5 @@
-const FILES={scare:'scream.mp3',come:'come-closer.mp3',secret:'secret.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3',warning:'warning.mp3',warningPrivate:'warning-private.mp3'};
+import {SCREAMS} from './screams.js';
+const FILES={...Object.fromEntries(Object.entries(SCREAMS).map(([id,sound])=>[id,sound.file])),come:'come-closer.mp3',secret:'secret.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3',warning:'warning.mp3',warningPrivate:'warning-private.mp3'};
 export class HorrorAudio {
  constructor(){this.context=null;this.output=null;this.voices=[];this.volume=.65;this.buffers=new Map();this.error=null;this.onStateChange=()=>{};this.prepare().catch(()=>{})}
  get ready(){return Object.keys(FILES).every(id=>this.buffers.has(id))}
@@ -35,11 +36,15 @@ export class HorrorAudio {
  playSample(id,group='scare',gain=1,duration){
   if(this.context?.state!=='running')return 'locked';
   const buffer=this.buffers.get(id);if(!buffer)return this.error?'sample error':'samples loading';
-  this.stop(group);const source=this.context.createBufferSource(),level=this.context.createGain();source.buffer=buffer;level.gain.value=gain;source.connect(level);level.connect(this.output);if(duration===undefined)source.start();else source.start(0,0,Math.min(duration,buffer.duration));
+  this.stop(group);const source=this.context.createBufferSource(),level=this.context.createGain();source.buffer=buffer;level.gain.value=gain;source.connect(level);level.connect(this.output);
+  if(duration===undefined)source.start();else{
+   const length=Math.min(duration,buffer.duration),now=this.context.currentTime;
+   level.gain.setValueAtTime(gain,now+Math.max(0,length-.04));level.gain.linearRampToValueAtTime(0,now+length);source.start(0,0,length);
+  }
   source.onended=()=>{source.disconnect();level.disconnect();this.voices=this.voices.filter(v=>v.node!==source)};this.voices.push({node:source,group});return id;
  }
  warning(ending='invite'){return this.playSample(ending==='secret'?'warningPrivate':'warning','instruction',.9)}
  laugh(){return this.playSample('laugh','laugh',.85)}
  say(id){return this.playSample(id,'whisper',.85)}
- play(duration){this.stop('whisper');return this.playSample('scare','scare',1,duration)}
+ play(duration,scream='scare'){this.stop('whisper');return this.playSample(Object.hasOwn(SCREAMS,scream)?scream:'scare','scare',1,duration)}
 }

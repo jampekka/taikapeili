@@ -7,11 +7,12 @@ import {ScreenWakeLock} from './wake-lock.js';
 import {enterFullscreen} from './fullscreen.js';
 import {layoutLights} from './lights.js';
 import {HorrorAudio} from './audio.js';
+import {SCREAMS} from './screams.js';
 import {safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
 const revealMs=650,encoreMs=450,lookMs=4000,startDelayMs=2000,laughDelayMs=400;
-let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null;
+let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null,scareEndsAt=0;
 let source=null,stream=null,detector=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null;
 let config=loadSettings();
 const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,frameAgeMs:null,error:'none',sound:'locked',eyes:'not measured'};
@@ -102,7 +103,9 @@ async function reveal(result,signal){
  await showStartle(result,signal,revealMs);
 }
 async function showStartle(result,signal,duration,repeated=false){
- $('ritualText').hidden=true;renderer.show(result.image,duration,result.focus,result.target);stats.sound=muted?'muted':audio.play(duration<revealMs?duration/1000:undefined);stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log(repeated?'Cached second scare':'Reveal');await delay(duration,signal);renderer.clearReveal();
+ const soundLimit=duration<revealMs?duration/1000:undefined;
+ $('ritualText').hidden=true;renderer.show(result.image,duration,result.focus,result.target);stats.sound=muted?'muted':audio.play(soundLimit,config.scream);scareEndsAt=performance.now()+Math.min(soundLimit??Infinity,audio.duration(config.scream,.72))*1000;stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log((repeated?'Cached second scare':'Reveal')+' · '+config.scream);await delay(duration,signal);renderer.clearReveal();
+ if(repeated)await delay(Math.max(0,scareEndsAt-performance.now()),signal);
 }
 async function instruction(signal){
  stats.sound=muted?'muted':audio.warning(config.ending);log('Post-sequence instruction · '+config.ending+' · '+stats.sound);
@@ -110,7 +113,7 @@ async function instruction(signal){
  await delay(audio.duration(config.ending==='secret'?'warningPrivate':'warning',12)*1000,signal);
 }
 async function afterReveal(signal){
- await delay(laughDelayMs,signal);stats.sound=muted?'muted':audio.laugh();log('Nelson laugh · 400ms after reveal');
+ await delay(Math.max(laughDelayMs,scareEndsAt-performance.now()),signal);stats.sound=muted?'muted':audio.laugh();log('Nelson laugh');
  await delay(audio.duration('laugh',1)*1000,signal);
 }
 function trigger(face){
@@ -190,6 +193,9 @@ function persistSettings(){
  const saved=saveSettings(config);$('settingsStatus').textContent=saved?'Saved automatically in this browser.':'Browser storage unavailable; changes last until reload.';
 }
 if(debug){
+ for(const [id,sound] of Object.entries(SCREAMS)){const option=document.createElement('option');option.value=id;option.textContent=sound.label;$('scream').append(option)}
+ $('scream').value=config.scream;
+ $('scream').addEventListener('change',e=>{config.scream=e.target.value;persistSettings()});
  for(const [id,key] of [['volume','volume'],['morph','morph'],['closeWidth','closeWidth']])$(id).value=Math.round(config[key]*100);
  showCloseWidth();
  $('showTexts').checked=config.texts;$('boxes').checked=config.boxes;$('ending').value=config.ending;$('endingCopy').textContent=ENDINGS[config.ending];
@@ -203,7 +209,7 @@ if(debug){
  $('volume').addEventListener('input',e=>{config.volume=Number(e.target.value)/100;audio.setVolume(config.volume);persistSettings()});
  $('boxes').addEventListener('change',e=>{config.boxes=e.target.checked;persistSettings();drawTracking(trackedFaces)});
  $('showTexts').addEventListener('change',e=>{config.texts=e.target.checked;persistSettings();$('ritualText').hidden=!config.texts||!activeCue});
- $('testSound').addEventListener('click',async()=>{await unlock();stats.sound=audio.play();updateDebug()});
+ $('testSound').addEventListener('click',async()=>{await unlock();stats.sound=audio.play(undefined,config.scream);updateDebug()});
  $('testScare').addEventListener('click',()=>{if(run.state==='idle'&&lastFace&&capture())trigger(lastFace)});
  setInterval(updateDebug,250);
 }
