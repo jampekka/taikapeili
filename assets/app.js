@@ -7,8 +7,7 @@ import {HorrorAudio} from './audio.js';
 import {DEFAULT_MODEL,requestServerImage,safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
-const postCopy='Kutsu seuraava katsomaan salaisuutta. Mutta jos spoilaat sen muille, kiroan sinut kahden asunnon loukkuun ja tilaan sinulle Elisa Viihteen.';
-const revealMs=650,comeMs=3000,lookMs=4000,startDelayMs=2000,laughDelayMs=1500;
+const revealMs=650,comeMs=3000,lookMs=4000,startDelayMs=2000,laughDelayMs=400;
 let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null;
 let source=null,stream=null,detector=null,segmenter=null,segmenterPromise=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null,configured=false;
 let config={provider:'local',model:DEFAULT_MODEL,morph:.7,volume:.65,texts:false};
@@ -20,7 +19,7 @@ const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),
 const run=new MirrorRun(state=>{
  mirror.dataset.phase=state==='running'?'processing':state==='reveal'?'reveal':'live';
  mirror.dataset.requesting=String(state==='running');
- if(state!=='instruction'){$('postMessage').hidden=true;audio.stop('instruction')}
+ if(state!=='instruction')audio.stop('instruction');
  if(state==='finished')log('Waiting for 3s without a face');
  if(state==='idle'||state==='finished'){activeCue=null;$('ritualText').hidden=true;audio.stop('whisper');renderer.waiting=false}
  if(state==='running')renderer.waiting=true;
@@ -115,13 +114,12 @@ async function reveal(result,signal){
  $('ritualText').hidden=true;renderer.show(result.image,revealMs,result.focus,result.target);stats.sound=muted?'muted':audio.play();stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log('Reveal');await delay(revealMs,signal);renderer.clearReveal();
 }
 async function instruction(signal){
- $('postMessage').textContent=postCopy;$('postMessage').hidden=false;
  stats.sound=muted?'muted':audio.warning();log('Post-sequence instruction · '+stats.sound);
- // Speak once, then keep the text until sustained face loss cancels this stage.
+ // Speak once; sustained face loss stops the instruction and ends this stage.
  await new Promise(resolve=>{if(signal.aborted)resolve();else signal.addEventListener('abort',resolve,{once:true})});
 }
 async function afterReveal(signal){
- await delay(laughDelayMs,signal);stats.sound=muted?'muted':audio.laugh();log('Nelson laugh · 1.5s after reveal');
+ await delay(laughDelayMs,signal);stats.sound=muted?'muted':audio.laugh();log('Nelson laugh · 400ms after reveal');
  await delay(audio.duration('laugh',1)*1000,signal);
 }
 function trigger(face){

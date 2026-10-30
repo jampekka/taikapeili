@@ -1,4 +1,4 @@
-import {revealZoom} from './portrait.js';
+import {revealZoom,revealImpact} from './portrait.js';
 import {projectLivePoint} from './overlay.js';
 const vertex=`attribute vec2 position;varying vec2 uv;void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
 const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;
@@ -21,8 +21,9 @@ export class MirrorRenderer {
   const h=Math.min(1200,Math.round(r.height)),w=Math.round(h*r.width/Math.max(1,r.height));if(c.width!==w||c.height!==h){c.width=w;c.height=h}
   c.hidden=false;ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);
   const image=this.scareImage,iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height;
-  const scale=Math.max(w/iw,h/ih)*revealZoom(now-this.scareAt,this.reduced);
-  ctx.translate(w*(this.target?.x??.5),h*(this.target?.y??.42));ctx.scale(scale,scale);ctx.translate(-this.focus.x*iw,-this.focus.y*ih);ctx.drawImage(image,0,0);
+  const elapsed=now-this.scareAt,impact=revealImpact(elapsed,this.reduced),scale=Math.max(w/iw,h/ih)*revealZoom(elapsed,this.reduced);
+  ctx.translate(w*((this.target?.x??.5)+impact.x),h*((this.target?.y??.42)+impact.y));ctx.scale(scale,scale);ctx.translate(-this.focus.x*iw,-this.focus.y*ih);ctx.drawImage(image,0,0);
+  if(impact.brightness>.01){ctx.globalCompositeOperation='screen';ctx.globalAlpha=impact.brightness;ctx.drawImage(image,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over'}
  }
  tick(now){if(!this.running)return;if(this.scareImage&&now<this.until){this.drawReveal(now)}else{if(this.scareImage)this.clearReveal();if(now-this.lastDraw>=(this.gl?32:80)){this.lastDraw=now;this.draw(now)}}this.onTick(now);this.raf=requestAnimationFrame(t=>this.tick(t))}
  draw(now){const active=false;const image=this.source;if(!image)return;const iw=image.videoWidth||image.naturalWidth||image.width,ih=image.videoHeight||image.naturalHeight||image.height;if(!iw||!ih)return;
