@@ -2,7 +2,7 @@
 export class MirrorRun {
  constructor(onChange=()=>{}){this.onChange=onChange;this.state='idle';this.active=null;this.error=null}
  setState(state){this.state=state;this.onChange(state,this)}
- start({generate,sequence,reveal}){
+ start({generate,sequence,beforeReveal=async image=>image,reveal}){
   if(this.state!=='idle')return false;
   const run={controller:new AbortController(),started:performance.now(),imageReady:false,sequenceDone:false};
   this.active=run;this.error=null;this.setState('running');
@@ -11,7 +11,9 @@ export class MirrorRun {
   const cues=Promise.resolve().then(()=>sequence(signal)).then(()=>{run.sequenceDone=true});
   run.done=Promise.all([image,cues]).then(async([image])=>{
    if(this.active!==run||signal.aborted)return;
-   this.setState('reveal');await reveal(image,signal);
+   const prepared=await beforeReveal(image,signal);
+   if(this.active!==run||signal.aborted)return;
+   this.setState('reveal');await reveal(prepared,signal);
    if(this.active===run){this.active=null;this.setState('idle')}
   }).catch(error=>{
    if(this.active!==run)return;

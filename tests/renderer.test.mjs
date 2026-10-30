@@ -10,8 +10,8 @@ for(const cover of [[1,1],[.6,1],[1,.6]])for(const time of [0,1,3,12,60]){
 }
 // The reveal bypasses the live RGB sampling path completely.
 const operations=[];
-const revealContext={setTransform(){},fillRect(){operations.push('black')},translate(){},scale(){},drawImage(){operations.push('image')}};
-const separate={revealCanvas:{width:640,height:800,hidden:true,getBoundingClientRect:()=>({width:640,height:800})},revealContext,scareImage:{width:640,height:800},focus:{x:.5,y:.4},scareAt:0,reduced:false};
+const revealContext={setTransform(){},fillRect(){operations.push('black')},translate(x,y){operations.push([x,y])},scale(){},drawImage(){operations.push('image')}};
+const separate={revealCanvas:{width:640,height:800,hidden:true,getBoundingClientRect:()=>({width:640,height:800})},revealContext,scareImage:{width:640,height:800},focus:{x:.5,y:.4},target:{x:.3,y:.7},scareAt:0,reduced:false};
 MirrorRenderer.prototype.drawReveal.call(separate,100);
-assert.equal(separate.revealCanvas.hidden,false);assert.deepEqual(operations,['black','image'],'Reveal draws the original image once; no RGB sampling or displacement');
+assert.equal(separate.revealCanvas.hidden,false);assert.deepEqual(operations,['black',[192,560],[-320,-320],'image'],'Latest eye anchor sets the reveal screen position while source eyes retain their captured coordinates');
 console.log('PASS: live warp stays filled across times/aspect ratios; separate reveal draws one unwarped image');

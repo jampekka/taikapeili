@@ -8,13 +8,14 @@ import {DEFAULT_MODEL,requestServerImage,safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
 const revealMs=650,comeMs=3000,lookMs=4000;
+let trackedFaces=[],activeCue=null,liveEyeFocus=null,moveFixture=null;
 let source=null,stream=null,detector=null,segmenter=null,segmenterPromise=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null,configured=false;
 let config={provider:'local',model:DEFAULT_MODEL,morph:.7,volume:.65};
 const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,error:'none',sound:'locked',mask:'not needed',eyes:'not measured'};
 const events=[],audio=new HorrorAudio();audio.setVolume(config.volume);
 const frame=document.createElement('canvas'),scan=document.createElement('canvas');
 const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alpha:false});
-const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
+const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),onTick:()=>drawTracking(trackedFaces),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 const run=new MirrorRun(state=>{
  mirror.dataset.phase=state==='running'?'processing':state==='idle'?'live':state;
  mirror.dataset.requesting=String(state==='running');
@@ -26,8 +27,14 @@ const run=new MirrorRun(state=>{
 });
 function log(message){events.unshift(`${new Date().toLocaleTimeString()} ${safeError(message)}`);events.length=Math.min(10,events.length);updateDebug()}
 function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state}`,`provider    ${config.provider==='local'?'dummy (no API calls)':config.model}`,`face scans  ${stats.detections} · ${stats.faces} faces`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`mask        ${stats.mask}`,`renderer    ${renderer.backend}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
-function cue(text,id){$('ritualText').textContent=text;$('ritualText').hidden=false;log(text);if(!muted)audio.say(id)}
-async function sequence(signal){cue('Tule lähemmäksi','come');await delay(comeMs,signal);cue('Katso syvälle silmiisi','look');await delay(lookMs,signal);$('ritualText').hidden=true;log('Sequence finished');updateDebug()}
+function playActiveCue(){
+ if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
+ const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
+ if(result===activeCue.id){activeCue.played=true;log(`Whisper played: ${activeCue.id}`)}
+ updateAudioPrompt();updateDebug();
+}
+function cue(text,id,duration){activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=false;log(text);playActiveCue()}
+async function sequence(signal){cue('Tule lähemmäksi','come',comeMs);await delay(comeMs,signal);cue('Katso syvälle silmiisi','look',lookMs);await delay(lookMs,signal);activeCue=null;$('ritualText').hidden=true;log('Sequence finished');updateDebug()}
 async function loadDetector(){
  if(detector)return;
  await import('./vendor/face-api.min.js');const api=globalThis.faceapi;
@@ -74,48 +81,76 @@ async function generate(image,face,signal){
  if(debug&&params.has('delay'))await delay(Math.min(30000,Number(params.get('delay'))||0),signal);
  stats.imageMs=performance.now()-started;log(`Image ready · ${Math.round(stats.imageMs)}ms`);return result;
 }
+function updateLiveEyes(faces){
+ const eyes=faces[0]?.eyes;if(eyes?.length===2)liveEyeFocus={x:(eyes[0].x+eyes[1].x)/2,y:(eyes[0].y+eyes[1].y)/2};
+}
+async function beforeReveal(result,signal){
+ // Take a final landmark measurement with the lights still on. The image itself
+ // remains the original captured portrait; only its on-screen anchor changes.
+ if(capture()){
+  const eyesFrame=document.createElement('canvas');eyesFrame.height=240;eyesFrame.width=Math.max(1,Math.round(240*frame.width/frame.height));eyesFrame.getContext('2d').drawImage(frame,0,0,eyesFrame.width,eyesFrame.height);
+  const faces=await detector.detect(eyesFrame,true).catch(()=>[]);if(signal.aborted)throw new DOMException('Cancelled','AbortError');updateLiveEyes(faces);
+ }
+ const target=liveEyeFocus||{x:.5,y:.42};log(`Reveal eyes: captured ${result.focus.y.toFixed(3)} → latest ${target.y.toFixed(3)}`);
+ return {...result,target};
+}
 async function reveal(result,signal){
- $('ritualText').hidden=true;renderer.show(result.image,revealMs,result.focus);stats.sound=muted?'muted':audio.play();stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log('Reveal');await delay(revealMs,signal);renderer.clearReveal();
+ $('ritualText').hidden=true;renderer.show(result.image,revealMs,result.focus,result.target);stats.sound=muted?'muted':audio.play();stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log('Reveal');await delay(revealMs,signal);renderer.clearReveal();
 }
 function trigger(face){
  if(run.state!=='idle'||!source)return;
- const image=snapshot();stats.captures++;stats.error='none';$('tracking').hidden=true;log('Face → capture + sequence + image');
- run.start({generate:signal=>generate(image,face,signal),sequence,reveal});
+ const image=snapshot();stats.captures++;stats.error='none';log('Face → capture + sequence + image');
+ run.start({generate:signal=>generate(image,face,signal),sequence,beforeReveal,reveal});
 }
-function drawTracking(faces){const c=$('tracking');c.hidden=!debug||!$('boxes').checked;if(c.hidden)return;const r=glass.getBoundingClientRect();c.width=Math.round(r.width);c.height=Math.round(r.height);const t=c.getContext('2d');t.strokeStyle='#9dffb0';t.lineWidth=2;for(const f of faces)t.strokeRect((f.center.x-f.width/2)*c.width,(f.center.y-f.height/2)*c.height,f.width*c.width,f.height*c.height)}
+function drawTracking(faces){
+ const c=$('tracking');c.hidden=!debug||!$('boxes').checked||run.state==='reveal';if(c.hidden)return;
+ const r=glass.getBoundingClientRect(),w=Math.round(r.width),h=Math.round(r.height);if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+ const t=c.getContext('2d');t.clearRect(0,0,w,h);t.strokeStyle='#9dffb0';t.lineWidth=2;
+ for(const f of faces){const left=f.center.x-f.width/2,top=f.center.y-f.height/2;const corners=[{x:left,y:top},{x:left+f.width,y:top},{x:left+f.width,y:top+f.height},{x:left,y:top+f.height}];t.beginPath();for(let side=0;side<4;side++)for(let i=0;i<8;i++){const a=corners[side],b=corners[(side+1)%4],p=renderer.projectPoint({x:a.x+(b.x-a.x)*i/8,y:a.y+(b.y-a.y)*i/8});if(!side&&!i)t.moveTo(p.x*w,p.y*h);else t.lineTo(p.x*w,p.y*h)}t.closePath();t.stroke()}
+}
+
 async function loop(now){
- const current=epoch;
- if(source&&run.state==='idle'&&now-lastScan>=300){
+ const current=epoch;moveFixture?.(now);
+ if(source&&run.state!=='reveal'&&(run.state==='idle'||(debug&&$('boxes').checked))&&now-lastScan>=(run.state==='idle'?300:650)){
   lastScan=now;
   try{if(capture()){
    scan.height=240;scan.width=Math.max(1,Math.round(240*frame.width/frame.height));scanCtx.drawImage(frame,0,0,scan.width,scan.height);
-   const faces=await detector.detect(scan);if(current!==epoch)return;lastFace=faces[0]||null;stats.detections++;stats.faces=faces.length;mirror.dataset.faces=String(faces.length);drawTracking(faces);
+   const faces=await detector.detect(scan);if(current!==epoch)return;updateLiveEyes(faces);trackedFaces=faces;lastFace=faces[0]||null;stats.detections++;stats.faces=faces.length;mirror.dataset.faces=String(faces.length);drawTracking(faces);
    if(lastFace)trigger(lastFace);updateDebug();
   }}catch(error){log(`Detection: ${safeError(error)}`)}
  }
  if(current===epoch&&source)raf=requestAnimationFrame(loop);
 }
-function stop(){epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
+function stop(){moveFixture=null;liveEyeFocus=null;activeCue=null;trackedFaces=[];epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
 async function start(){
  if(starting||source)return;starting=true;const current=++epoch;$('startup').hidden=false;$('enable').hidden=true;$('message').textContent='Opening the mirror…';
  try{
-  const ready=Promise.all([loadDetector(),fetch('/api/mirror/config').then(r=>r.json()).then(c=>{configured=!!c.configured;$('serverKeyStatus').textContent=configured?'Server configured · dummy is the default':'Dummy mode · no API needed'}).catch(()=>{})]);
-  if(fixture){const image=fixture==='portrait'?new Image():document.createElement('canvas');if(fixture==='portrait'){image.src='portrait.jpg';await image.decode()}else{image.width=600;image.height=800;image.getContext('2d').fillRect(0,0,600,800)}if(current!==epoch)return;source=image;video.hidden=true}
+  const ready=Promise.all([audio.prepare().catch(error=>log(safeError(error))),loadDetector(),fetch('/api/mirror/config').then(r=>r.json()).then(c=>{configured=!!c.configured;$('serverKeyStatus').textContent=configured?'Server configured · dummy is the default':'Dummy mode · no API needed'}).catch(()=>{})]);
+  if(fixture){const image=fixture==='portrait'?new Image():document.createElement('canvas');if(fixture==='portrait'){image.src='portrait.jpg';await image.decode()}else{image.width=600;image.height=800;image.getContext('2d').fillRect(0,0,600,800)}if(current!==epoch)return;source=image;
+   if(debug&&fixture==='portrait'&&params.has('move')){
+    const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d'),began=performance.now();
+    moveFixture=now=>{context.fillStyle='#000';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,now-began>3000?canvas.height*.15:0)};moveFixture(began);source=canvas;
+   }
+   video.hidden=true}
   else{const camera=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:false});if(current!==epoch){camera.getTracks().forEach(t=>t.stop());return}stream=camera;video.srcObject=camera;await video.play();source=video}
   await ready;if(current!==epoch)return;$('startup').hidden=true;mirror.dataset.ready='true';mirror.dataset.phase='live';renderer.start(source);lastScan=-Infinity;raf=requestAnimationFrame(loop);log('Mirror ready · dummy default');
  }catch(error){if(current!==epoch)return;stop();$('startup').hidden=false;$('message').textContent=`Camera/detector: ${safeError(error)}`;$('enable').hidden=false}
  finally{if(current===epoch)starting=false}
 }
-async function unlock(){if(muted)return;try{await audio.unlock();$('armAudio').hidden=audio.status==='running'}catch(error){log(safeError(error))}}
-$('armAudio').hidden=muted;$('armAudio').addEventListener('click',unlock);window.addEventListener('pointerdown',()=>{if(audio.status!=='running')void unlock()},{passive:true});
+function updateAudioPrompt(){
+ $('armAudio').hidden=muted||audio.status==='running';$('armAudio').textContent=audio.error?'Retry sound':'Tap once for sound';
+}
+audio.onStateChange=updateAudioPrompt;
+async function unlock(){if(muted)return;try{await audio.unlock();playActiveCue()}catch(error){log(safeError(error))}updateAudioPrompt()}
+updateAudioPrompt();$('armAudio').addEventListener('click',unlock);window.addEventListener('pointerdown',()=>{if(audio.status!=='running')void unlock()},{passive:true});
 $('enable').addEventListener('click',()=>{stop();start()});$('retry').addEventListener('click',()=>{$('runError').hidden=true;run.reset()});
 if(debug){
  $('debug').hidden=false;$('apiModel').value=DEFAULT_MODEL;
  $('providerForm').addEventListener('submit',e=>{e.preventDefault();if(run.state!=='idle'){log('Finish the current run before changing provider');return}if(!configured){log('Server provider unavailable');return}config.provider='server';config.model=$('apiModel').value||DEFAULT_MODEL;$('providerStatus').textContent=`Remote · ${config.model}`;updateDebug()});
  $('useLocal').addEventListener('click',()=>{if(run.state!=='idle')return;config.provider='local';$('providerStatus').textContent='Dummy · no API calls';updateDebug()});
- $('morph').addEventListener('input',e=>{config.morph=Number(e.target.value)/100;renderer.strength=$('boxes').checked?0:config.morph});
+ $('morph').addEventListener('input',e=>{config.morph=Number(e.target.value)/100;renderer.strength=config.morph});
  $('volume').addEventListener('input',e=>audio.setVolume(Number(e.target.value)/100));
- $('boxes').addEventListener('change',()=>{renderer.strength=$('boxes').checked?0:config.morph;if(!$('boxes').checked)$('tracking').hidden=true});renderer.strength=0;
+ $('boxes').addEventListener('change',()=>drawTracking(trackedFaces));
  $('testSound').addEventListener('click',async()=>{await unlock();stats.sound=audio.play();updateDebug()});
  $('testScare').addEventListener('click',()=>{if(run.state==='idle'&&lastFace&&capture())trigger(lastFace)});
  $('providerStatus').textContent='Dummy · no API calls';setInterval(updateDebug,250);

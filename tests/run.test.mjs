@@ -18,3 +18,11 @@ for(const imageFirst of [true,false]){
  const r=new MirrorRun();r.start({generate:()=>Promise.reject(new Error('failure')),sequence:signal=>delay(100000,signal),reveal:()=>assert.fail('No reveal on failure')});await flush();assert.equal(r.state,'error');assert.match(r.error.message,/failure/);r.reset();assert.equal(r.state,'idle');
 }
 console.log('PASS: concurrent start; early/late image barrier; one capture/reveal; repeated detections ignored; shutdown; visible error and reset');
+
+{
+ const image=deferred(),sequence=deferred();let latestEyeY=.3,revealed;
+ const r=new MirrorRun();r.start({generate:()=>image.promise,sequence:()=>sequence.promise,beforeReveal:value=>({...value,target:latestEyeY}),reveal:value=>{revealed=value}});
+ await flush();image.resolve({capturedEyeY:.3});latestEyeY=.6;sequence.resolve();await flush();
+ assert.equal(revealed.capturedEyeY,.3);assert.equal(revealed.target,.6,'Reveal positioning reads the latest eyes after both branches finish');
+}
+console.log('PASS: reveal measures current eye position after the image/sequence barrier');
