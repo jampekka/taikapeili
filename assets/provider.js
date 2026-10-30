@@ -1,5 +1,6 @@
-export const DEFAULT_MODEL='google/gemini-3.1-flash-lite-image';
+export const DEFAULT_MODEL='gpt-image-2.5-flare';
 export const MODEL_PROFILES={
+ 'gpt-image-2.5-flare':{resolutions:[],provider:'openai',outputFormat:'jpeg'},
  'google/gemini-3.1-flash-lite-image':{resolutions:['1K'],defaultResolution:'1K'},
  'google/gemini-3.1-flash-image':{resolutions:['512','1K'],defaultResolution:'512'},
  'google/gemini-2.5-flash-image':{resolutions:[]},
@@ -25,7 +26,7 @@ export function decodeImageResponse(payload){
  return {dataUrl:`data:${mime};base64,${item.b64_json}`,cost:Number.isFinite(payload.usage?.cost)?payload.usage.cost:null};
 }
 export function safeError(error,key=''){
- let s=String(error?.message||error||'Unknown error');if(key)s=s.split(key).join('[redacted]');return s.replace(/sk-or-[A-Za-z0-9_-]+/g,'[redacted]').replace(/data:image\/[^\s]+/g,'[image]').slice(0,280);
+ let s=String(error?.message||error||'Unknown error');if(key)s=s.split(key).join('[redacted]');return s.replace(/sk-(?:proj-|or-)?[A-Za-z0-9_-]+/g,'[redacted]').replace(/data:image\/[^\s]+/g,'[image]').slice(0,280);
 }
 export async function requestImage({apiKey,imageData,model=DEFAULT_MODEL,effect,ratio,resolution,signal,fetchImpl=fetch}){
  if(!apiKey)throw new Error('No OpenRouter key configured');
@@ -41,5 +42,21 @@ export async function requestServerImage({imageData,model,effect,ratio,resolutio
  const payload=await response.json().catch(()=>({}));
  if(!response.ok)throw new Error(typeof payload.error==='string'?payload.error:`Mirror server ${response.status}: image edit failed`);
  if(typeof payload.dataUrl!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(payload.dataUrl))throw new Error('The server returned no edited image');
- return {dataUrl:payload.dataUrl,cost:Number.isFinite(payload.cost)?payload.cost:null};
+ return {dataUrl:payload.dataUrl,cost:Number.isFinite(payload.cost)?payload.cost:null,providerMs:payload.providerMs??null,requestId:payload.requestId??null};
+}
+
+export function buildOpenAIRequest({imageData,effect='zombie',ratio=1}){
+ if(!/^data:image\/(jpeg|png|webp);base64,/.test(imageData))throw new Error('Invalid captured image');
+ return {model:'gpt-image-2.5-flare',images:[{image_url:imageData}],prompt:`${edits[effect]||edits.zombie} Keep the same recognizable face, head position, pose, framing and clothing. Isolate the person against pure black. No text.`,quality:'low',size:ratio<.9?'768x1024':ratio>1.1?'1024x768':'832x832',output_format:'jpeg',n:1};
+}
+export async function requestOpenAIImage({apiKey,imageData,effect,ratio,signal,fetchImpl=fetch}){
+ if(!apiKey)throw new Error('No OpenAI key configured');
+ let response;
+ try{response=await fetchImpl('https://api.openai.com/v1/images/edits',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify(buildOpenAIRequest({imageData,effect,ratio})),signal})}
+ catch(error){if(signal?.aborted)throw error;throw new Error('OpenAI could not be reached')}
+ const payload=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(`OpenAI ${response.status}: ${safeError(payload.error?.message||'Request rejected',apiKey)}`);
+ const item=payload.data?.[0];
+ const result=decodeImageResponse({...payload,data:item?[{...item,media_type:'image/jpeg'}]:[]});
+ return {...result,requestId:response.headers.get('x-request-id')};
 }

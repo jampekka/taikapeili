@@ -17,13 +17,13 @@ const frame=document.createElement('canvas'),scan=document.createElement('canvas
 const frameContext=frame.getContext('2d',{alpha:false}),scanContext=scan.getContext('2d',{alpha:false});
 const cycle=new MirrorCycle(),audio=new HorrorAudio(),lead=new MirrorLeadIn(),events=[];
 let shownCue=null,spokenCue=null;
-const stats={trigger:'none',faceConfidence:0,faceChecks:0,faceMs:0,person:'loading',personCoverage:0,presenceMs:0,cacheHits:0,cachedReveals:0,detector:'loading',scans:0,faces:0,confidence:0,inferenceMs:0,renderMs:null,firstFaceAt:null,reveals:0,apiCalls:0,apiCost:0,costKnown:false,lastSound:'none',error:'none',lastTrigger:'none'};
+const stats={trigger:'none',faceConfidence:0,faceChecks:0,faceMs:0,person:'loading',personCoverage:0,presenceMs:0,cacheHits:0,cachedReveals:0,detector:'loading',scans:0,faces:0,confidence:0,inferenceMs:0,renderMs:null,providerMs:null,firstFaceAt:null,reveals:0,apiCalls:0,apiCost:0,costKnown:false,lastSound:'none',error:'none',lastTrigger:'none'};
 let serverConfigured=false;
 let config={provider:'auto',model:DEFAULT_MODEL,resolution:'auto',morph:.7,cached:true,sound:'random',volume:.65};
-try{const saved=JSON.parse(sessionStorage.getItem('mirror-controls')||'{}');for(const key of Object.keys(config))if(saved[key]!==undefined)config[key]=saved[key]}catch{}
+try{const saved=JSON.parse(sessionStorage.getItem('mirror-controls-flare')||'{}');for(const key of Object.keys(config))if(saved[key]!==undefined)config[key]=saved[key]}catch{}
 audio.setVolume(Number(config.volume)||0);
 const renderer=new MirrorRenderer($('atmosphere'),{reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,onTick(now){updateLeadIn(now);renderer.waiting=!!activeRequest;if(now>=visualUntil&&mirror.dataset.phase==='reveal')mirror.dataset.phase=cycle.phase==='processing'?'processing':'live'}});renderer.strength=config.morph;
-function saveConfig(){try{sessionStorage.setItem('mirror-controls',JSON.stringify(config))}catch{}}
+function saveConfig(){try{sessionStorage.setItem('mirror-controls-flare',JSON.stringify(config))}catch{}}
 function log(text){const safe=safeError(text);events.unshift(`${new Date().toLocaleTimeString()} ${safe}`);events.length=Math.min(events.length,12);updateDebug()}
 function phase(p){mirror.dataset.phase=performance.now()<visualUntil?'reveal':p;updateDebug()}
 function notify(text,canRetry=false){mirror.dataset.ready='false';$('message').textContent=text;$('enable').hidden=!canRetry;$('startup').hidden=false}
@@ -106,6 +106,7 @@ async function reveal(face,ticket,run){
   if(request.provider==='server'){
    stats.apiCalls++;
    const response=await requestServerImage({imageData:encodeUpload(snapshot),model:config.model,effect,ratio:snapshot.width/snapshot.height,resolution:config.resolution,signal:request.controller.signal});
+   stats.providerMs=response.providerMs;log(`Image received · provider ${response.providerMs===null?'unknown':Math.round(response.providerMs)+'ms'}`);
    if(response.cost!==null){stats.apiCost+=response.cost;stats.costKnown=true}
    edited=new Image();edited.src=response.dataUrl;await edited.decode();
   }else{let aligned=face;try{const faces=await detector.detect(snapshot);if(faces[0])aligned=faces[0]}catch{}edited=await transformSnapshot({image:snapshot,face:aligned,effect})}
@@ -118,7 +119,7 @@ async function reveal(face,ticket,run){
   if(run!==generation||ticket!==cycle.ticket)return;
   cancelLeadIn();
   cycle.fail(ticket,performance.now());phase('live');
-  if(request.controller.signal.aborted){stats.error=request.controller.signal.reason==='timeout'?'Image request timed out':'Request cancelled'}else{stats.error=safeError(error);if(/OpenRouter (400|401|402|403|404):/.test(stats.error))cycle.nextCapture=Infinity}
+  if(request.controller.signal.aborted){stats.error=request.controller.signal.reason==='timeout'?'Image request timed out':'Request cancelled'}else{stats.error=safeError(error);if(/(?:OpenRouter|OpenAI) (400|401|402|403|404|429):/.test(stats.error))cycle.nextCapture=Infinity}
   log(stats.error);
  }finally{clearTimeout(timeout);if(activeRequest===request){activeRequest=null;mirror.dataset.requesting='false'}updateDebug()}
 }
@@ -188,14 +189,14 @@ function updateDebug(){
  if(!debug)return;
  const running=activeRequest?`${Math.round(performance.now()-activeRequest.started)}ms`:'—';
  const resolution=source?`${source.videoWidth||source.width}×${source.videoHeight||source.height}`:'not open';
- $('debugState').textContent=[`phase       ${mirror.dataset.phase}`,`source      ${fixture||'camera'} · ${resolution}`,`detector    ${stats.detector}`,`presence    ${stats.faces?'present':'absent'} · via ${stats.trigger}`,`face checks ${stats.faceChecks} · ${Math.round(stats.faceMs)}ms · ${Math.round(stats.faceConfidence*100)}%`,`body mask   ${Math.round(stats.personCoverage*100)}%`,`mask model  ${stats.person} · ${Math.round(stats.presenceMs)}ms`,`frame cache ${stats.cacheHits} inference skips`,`lead-in     ${lead.cue(performance.now())||'off'}`,`analysis    ${performance.now()<analysisResumeAt?'paused for blackout/exposure':'sampling'}`,`morph       ${renderer.backend}`,`scare cache ${stats.cachedReveals} instant reveals`,`scan        ${stats.scans} · ${Math.round(stats.inferenceMs)}ms`,`provider    ${config.provider==='local'?'dummy':config.model}`,`image size  upload ≤${inputMaxEdge}px · output ${config.resolution}`,`key         ${serverConfigured?'configured on server':'not configured'}`,`request     ${running}`,`last render ${stats.renderMs===null?'—':Math.round(stats.renderMs)+'ms'}`,`reveals     ${stats.reveals} · first detection triggers now`,`audio       ${muted?'muted by query':audio.status} · ${stats.lastSound}`,`API calls   ${stats.apiCalls} · cost ${stats.costKnown?'$'+stats.apiCost.toFixed(4):'not reported'}`,`last error  ${stats.error}`].join('\n');
+ $('debugState').textContent=[`phase       ${mirror.dataset.phase}`,`source      ${fixture||'camera'} · ${resolution}`,`detector    ${stats.detector}`,`presence    ${stats.faces?'present':'absent'} · via ${stats.trigger}`,`face checks ${stats.faceChecks} · ${Math.round(stats.faceMs)}ms · ${Math.round(stats.faceConfidence*100)}%`,`body mask   ${Math.round(stats.personCoverage*100)}%`,`mask model  ${stats.person} · ${Math.round(stats.presenceMs)}ms`,`frame cache ${stats.cacheHits} inference skips`,`lead-in     ${lead.cue(performance.now())||'off'}`,`analysis    ${performance.now()<analysisResumeAt?'paused for blackout/exposure':'sampling'}`,`morph       ${renderer.backend}`,`scare cache ${stats.cachedReveals} instant reveals`,`scan        ${stats.scans} · ${Math.round(stats.inferenceMs)}ms`,`provider    ${config.provider==='local'?'dummy':config.model}`,`image size  upload ≤${inputMaxEdge}px · output ${config.resolution}`,`key         ${serverConfigured?'configured on server':'not configured'}`,`request     ${running}`,`provider ms ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`last render ${stats.renderMs===null?'—':Math.round(stats.renderMs)+'ms'}`,`reveals     ${stats.reveals} · first detection triggers now`,`audio       ${muted?'muted by query':audio.status} · ${stats.lastSound}`,`API calls   ${stats.apiCalls} · cost ${stats.costKnown?'$'+stats.apiCost.toFixed(4):'not reported'}`,`last error  ${stats.error}`].join('\n');
  $('debugEvents').textContent=events.join('\n');
 }
 async function loadServerConfig(){
  try{const response=await fetch('/api/mirror/config',{cache:'no-store'});if(!response.ok)throw new Error('Server configuration unavailable');const data=await response.json();serverConfigured=!!data.configured;inputMaxEdge=data.inputMaxEdge||512;if(config.provider==='auto')config.provider=serverConfigured?'server':'local';if(!serverConfigured&&config.provider==='server')config.provider='local';if(config.model===DEFAULT_MODEL&&data.model)config.model=data.model;if(debug){$('serverKeyStatus').textContent=serverConfigured?'Server key configured · no key entry needed':'No server key configured in this preview.';$('apiModel').value=config.model;$('providerStatus').textContent=config.provider==='server'?`Using ${config.model}.`:'Using the local dummy effect.'}log(serverConfigured?'Server image provider ready':'Local preview · dummy provider')}
  catch(error){if(config.provider==='auto')config.provider='local';log(safeError(error))}
 }
-function resetProvider(){cancelLeadIn();abortRequest('Provider changed');cycle.reset();phase('live');if(fixture)drawFixture();stats.error='none';$('providerStatus').textContent=config.provider==='server'?`Using ${config.model}. Face snapshots are sent automatically.`:'Using the local dummy effect.';saveConfig();updateDebug()}
+function resetProvider(){cancelLeadIn();abortRequest('Provider changed');cycle.reset();phase('live');if(fixture)drawFixture();stats.error='none';$('providerStatus').textContent=config.provider==='server'?`Using ${config.model}. Snapshots are sent automatically.`:'Using the local dummy effect.';saveConfig();updateDebug()}
 
 if(debug){
  $('debug').hidden=false;$('morph').value=config.morph*100;$('instantCache').checked=config.cached;$('resolution').value=config.resolution;$('apiModel').value=config.model;$('sound').value=config.sound;$('volume').value=Math.round(config.volume*100);

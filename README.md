@@ -18,9 +18,9 @@ The cutout zooms from approximately 0.001 scale to full size in 145ms, then osci
 
 Horror sounds use three bundled audio samples: shriek, orchestral stab and monster growl. Finnish whisper clips were generated once using ElevenLabs eleven-v4, Sarah, through OpenRouter. Playback uses Web Audio. They are randomized without immediately repeating the same variant. A master volume and compressor limit peaks. Audio requires one user gesture under browser autoplay rules; visual scares work before it is unlocked. No microphone permission or runtime speech service is used. All audio files are bundled and preloaded.
 
-## OpenRouter
+## Image providers
 
-The server holds `OPENROUTER_API_KEY`; it never reaches browser code, URLs, config responses or logs. `IMAGE_MODEL` selects the production default, currently `black-forest-labs/flux.2-klein-4b`. The browser reads `/api/mirror/config` and sends a captured JPEG to `/api/mirror/edit`. Uploads are resized to at most 512px. The Worker calls `POST https://openrouter.ai/api/v1/images` with `input_references` and an edit prompt, and returns the image and reported cost. The endpoint validates model/type/size, rejects cross-origin browser requests, and relies on the existing owner-private Sites access boundary. One request per visitor per isolate is allowed at a time. Production secrets are absent from local preview, which uses dummy effects.
+The server holds `OPENAI_API_KEY` and optional `OPENROUTER_API_KEY`; neither reaches browser code, URLs, config responses or logs. `IMAGE_MODEL` selects the production default, currently `gpt-image-2.5-flare` through direct OpenAI. The browser reads `/api/mirror/config` and sends a captured JPEG to `/api/mirror/edit`. Uploads are resized to at most 512px. For legacy OpenRouter models the Worker calls `POST https://openrouter.ai/api/v1/images` with `input_references`; Flare uses direct OpenAI as described below. The endpoint validates model/type/size, rejects cross-origin browser requests, and relies on the existing owner-private Sites access boundary. One request per visitor per isolate is allowed at a time. Production secrets are absent from local preview, which uses dummy effects.
 
 Model profiles available in debug:
 
@@ -37,7 +37,7 @@ Model tests on the same fictional imagegen portrait, with 512px uploads, on 2026
 | Nano Banana 2, 512px | 10.90s, 12.12s | ~$0.0455 |
 | FLUX.2 Klein 4B, native | 11.56s, 10.97s | $0.015 |
 
-These few tests did not establish a meaningful personalized-image speedup. Klein was selected for the lower cost and useful horror result. Cached scares provide the immediate response; hosted editing still takes seconds and varies with provider load. This is not a guaranteed latency benchmark.
+These few tests did not establish a meaningful personalized-image speedup. Klein was initially selected for the lower cost and useful horror result; Flare is now the requested default. Cached scares provide the immediate response; hosted editing still takes seconds and varies with provider load. This is not a guaranteed latency benchmark.
 
 Changing provider, leaving the page or sustained person loss cancels local work and suppresses stale replies. Cancellation does not guarantee that an upstream job stops or avoids billing. Timeouts are 80 seconds on the server and 90 in the browser. Most failures back off ten seconds; configuration/auth/balance errors pause until settings are reapplied. No silent dummy fallback disguises a failed remote edit.
 
@@ -75,3 +75,11 @@ An empty body mask no longer blocks triggering. When segmentation misses a close
 ## Theatrical sequence
 
 Presence starts the sequence. “Tule lähemmäksi” and “Katso syvälle silmiisi” are timed theatrical cues: face position and apparent size do not advance, restart or cancel them. Sustained absence still ends the visit. The reveal has no live eye-alignment step.
+
+## Direct OpenAI Flare
+
+The default is now `gpt-image-2.5-flare` through OpenAI's `/v1/images/edits`, with low quality, JPEG and 768×1024 portrait output (landscape and square sizes adapt). The API key is the server secret `OPENAI_API_KEY`; it is never sent to the browser. OpenRouter models remain available explicitly in debug. The new settings namespace resets older saved model selections once so they cannot silently override this switch.
+
+The first direct test on the fictional portrait took 14.52 seconds on 2026-10-30, produced 768×1024 JPEG and reported 835 input tokens and 134 output tokens. This single test was not faster than the earlier Klein test. Direct OpenAI does not report a monetary cost on this response; the UI leaves cost unknown. Debug now displays provider turnaround separately from reveal/narration timing. Incoming request cancellation is forwarded to the provider fetch when the host exposes it; cancellation does not guarantee stopped upstream billing.
+
+The sequence simplification, face-only triggering and short scream selection remain follow-up work. This change switches the image provider; it does not claim those pending changes are finished.
