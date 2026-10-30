@@ -4,7 +4,7 @@ assert.ok(revealZoom(0)<.05);assert.equal(revealZoom(50),1.8);assert.equal(revea
 for(let t=0;t<=650;t++){
  const impact=revealImpact(t),fade=(1-t/650)**2;
  assert.ok(Math.abs(impact.x)<=.022*fade+1e-12);assert.ok(Math.abs(impact.y)<=.017*fade+1e-12);
- assert.ok(impact.brightness>=0&&impact.brightness<.5);
+ assert.ok(impact.brightness>=0&&impact.brightness<=.9);
  assert.deepEqual(revealImpact(t,true),{x:0,y:0,brightness:0});
 }
 for(const t of [65,245,430])assert.ok(revealImpact(t).brightness>.24,'Three distinct brightness surges');

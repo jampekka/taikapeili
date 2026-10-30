@@ -9,5 +9,6 @@ export function revealImpact(elapsed,reduced=false){
  if(reduced)return {x:0,y:0,brightness:0};
  const t=Math.max(0,elapsed),fade=Math.max(0,1-t/650)**2,jolt=Math.floor(t/23);
  const pulse=(at,width)=>Math.exp(-(((t-at)/width)**2));
- return {x:.022*fade*Math.sin(jolt*2.4),y:.017*fade*Math.sin(jolt*4.1),brightness:.48*pulse(65,20)+.34*pulse(245,27)+.25*pulse(430,20)};
+ const punch=.7*Math.max(0,1-t/100);
+ return {x:.022*fade*Math.sin(jolt*2.4),y:.017*fade*Math.sin(jolt*4.1),brightness:Math.min(.9,punch+.48*pulse(65,20)+.34*pulse(245,27)+.25*pulse(430,20))};
 }
