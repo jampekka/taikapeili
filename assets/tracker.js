@@ -4,7 +4,18 @@ export function cameraToMirror(point,sourceRatio,viewRatio){
 }
 export function faceToMirror(face,sourceRatio,viewRatio){
  const center=cameraToMirror(face.center,sourceRatio,viewRatio),a=cameraToMirror({x:0,y:0},sourceRatio,viewRatio),b=cameraToMirror({x:1,y:1},sourceRatio,viewRatio);
- return {...face,center,width:face.width*Math.abs(b.x-a.x),height:face.height*Math.abs(b.y-a.y),eyes:face.eyes.map(p=>cameraToMirror(p,sourceRatio,viewRatio)).sort((a,b)=>a.x-b.x)};
+ return {...face,center,width:face.width*Math.abs(b.x-a.x),height:face.height*Math.abs(b.y-a.y),eyes:face.eyes.map(p=>cameraToMirror(p,sourceRatio,viewRatio)).sort((a,b)=>a.x-b.x),nose:face.nose?cameraToMirror(face.nose,sourceRatio,viewRatio):null};
+}
+// Broad head-facing proxy from eye/nose geometry, not gaze estimation.
+// Work in equal-scale axes and relative to the eye line so roll is tolerated.
+export function facingMirror(face,viewRatio=1){
+ const eyes=face?.eyes,nose=face?.nose;
+ if(eyes?.length!==2||!nose||![...eyes,nose].every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))||!Number.isFinite(viewRatio)||viewRatio<=0)return false;
+ const [a,b]=eyes,dx=(b.x-a.x)*viewRatio,dy=b.y-a.y,span2=dx*dx+dy*dy;
+ if(span2<1e-8)return false;
+ const nx=(nose.x-(a.x+b.x)/2)*viewRatio,ny=nose.y-(a.y+b.y)/2;
+ const side=Math.abs((nx*dx+ny*dy)/span2),down=(dx*ny-dy*nx)/span2;
+ return side<=.28&&down>=.10&&down<=1.05;
 }
 // Eye coordinates are already in the mirrored display crop, not raw camera space.
 export function bothEyesVisible(face,project=point=>point){
