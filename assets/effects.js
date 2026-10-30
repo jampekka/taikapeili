@@ -1,5 +1,4 @@
 export async function transformSnapshot({image,face,effect="zombie",intensity=.82}){
- await new Promise(resolve=>setTimeout(resolve,450));
  const c=document.createElement('canvas');c.width=image.width;c.height=image.height;const ctx=c.getContext('2d');const W=c.width,H=c.height;
  const filters={zombie:`saturate(${.5-intensity*.35}) contrast(${1+intensity*.35}) brightness(${1-intensity*.12})`,aged:`saturate(${1-intensity*.65}) sepia(${intensity*.27}) contrast(${1+intensity*.18})`,ghost:`grayscale(1) contrast(${1+intensity*.3}) brightness(${1+intensity*.2})`};
  ctx.filter=filters[effect];ctx.drawImage(image,0,0);ctx.filter='none';

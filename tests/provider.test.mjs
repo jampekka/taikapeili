@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {buildImageRequest,decodeImageResponse,requestImage,API_URL,DEFAULT_MODEL,safeError} from '../assets/provider.js';
+const imageData='data:image/jpeg;base64,ZmFrZQ==';
+const body=buildImageRequest({imageData,ratio:.75});
+assert.equal(body.model,DEFAULT_MODEL);assert.equal(body.aspect_ratio,'3:4');assert.equal(body.resolution,'1K');assert.equal(body.input_references[0].image_url.url,imageData);
+assert.match(body.prompt,/Preserve/);assert.equal(JSON.stringify(body).includes('apiKey'),false);
+assert.throws(()=>buildImageRequest({imageData:'javascript:bad'}),/Invalid captured image/);
+assert.throws(()=>decodeImageResponse({data:[]}),/no edited image/);
+assert.throws(()=>decodeImageResponse({data:[{b64_json:'PHN2Zz4=',media_type:'image/svg+xml'}]}),/Unsupported/);
+let sent;
+const result=await requestImage({apiKey:'test-key',imageData,fetchImpl:async(url,options)=>{sent={url,options};return new Response(JSON.stringify({data:[{b64_json:'aGVsbG8=',media_type:'image/png'}],usage:{cost:.01}}),{status:200})}});
+assert.equal(sent.url,API_URL);assert.equal(sent.options.headers.Authorization,'Bearer test-key');assert.equal(sent.options.body.includes('test-key'),false);assert.equal(result.cost,.01);assert.equal(result.dataUrl,'data:image/png;base64,aGVsbG8=');
+await assert.rejects(requestImage({apiKey:'test-key',imageData,fetchImpl:async()=>new Response(JSON.stringify({error:{message:'bad test-key'}}),{status:401})}),error=>/OpenRouter 401/.test(error.message)&&!error.message.includes('test-key'));
+await assert.rejects(requestImage({apiKey:'test-key',imageData,fetchImpl:async()=>{throw new TypeError('network')}}),/network or CORS/);
+assert.equal(safeError('no sk-or-v1-abc123'), 'no [redacted]');
+console.log('PASS: editing request, reference input, ratio, image decoding, costs, authentication header, key redaction, HTTP/network failures');

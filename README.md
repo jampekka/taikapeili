@@ -1,25 +1,48 @@
-# The Other Side — automatic mirror
+# The Other Side — Halloween mirror
 
-A buildless, camera-only Halloween mirror. Serve `dist` over HTTPS. The visible interface is only the live mirrored camera, surrounded by warm-white screen lights. No menus, title, effect picker, countdown, capture button, or result controls. Camera permission is requested at startup; a retry/enable button appears only when the browser prevents startup. Once permission is allowed, no visitor interaction is required.
+A buildless, edge-to-edge camera mirror. A small Worker serves the assets and the protected image-edit endpoint over HTTPS. Source assets are in `assets/`; `node scripts/build.mjs` embeds them into `dist/server/index.js`. Fourteen large white bulb overlays provide screen illumination (twelve on narrow phones); there is no solid frame or normal-use interface. The camera permission/retry UI disappears when ready. A small “Tap once for sound” prompt disappears after a page gesture unlocks browser audio. Visual reveals work without touching the page.
 
-## Automatic operation
+## Automatic jump scare
 
-1. Tiny Face Detector and the tiny 68-point landmark model run locally on sampled, cropped camera frames, using face-api.js 0.22.2 on its CPU backend. All scripts and weights are bundled with the Site. No WebGL, CDN, or native FaceDetector API is required.
-2. After a face is present and reasonably steady for one second, the matching camera frame is captured. The live view continues during asynchronous processing.
-3. The modified still fades in automatically for 1.7 seconds, then the live mirror returns. It repeats after about 6.5 seconds while a visitor remains.
-4. Face loss or a large position/size change cancels pending work and hides a stale reveal. Eye landmarks position, scale and rotate the effect automatically.
+- Tiny Face Detector and the tiny 68-point landmark model run locally on sampled camera frames. The first qualifying detection captures immediately: no stable-face wait, countdown or artificial dummy-render delay.
+- `transformSnapshot` (`assets/effects.js`) produces the local dummy zombie effect, aligned to detected eye position, size and rotation. It can be replaced by the real OpenRouter image provider below. The live camera continues while editing.
+- When the result is ready, it snaps in with a short zoom/jolt and a randomized synthesized shriek, orchestral stab or monster growl. The original live mirror returns after approximately 1.4 seconds, then another capture is allowed after six seconds.
+- A sustained face loss or clearly different visitor position invalidates pending work. Normal movement during a slow model request is allowed. Hidden pages stop the camera and cancel work; visible pages resume. Screen wake lock is requested where supported.
+- WebGL accelerates detection when available; CPU is the fallback. `?backend=cpu` forces CPU for diagnostics. Face models and scripts are served locally; there are no runtime CDN dependencies.
+- Reduced-motion preferences suppress the zoom/jolt. Sound is synthesized with Web Audio, with a master volume and dynamics compressor. No microphone, audio recording, external sound files or service is needed.
 
-The default transformation is a local dummy zombie effect. This is actual face detection and eye alignment, but not AI image editing. `transformSnapshot` in `dist/effects.js` is the replaceable asynchronous image-provider boundary; it receives a captured canvas, detected face geometry, effect and intensity, and returns a drawable canvas. A future provider should call a server endpoint with provider credentials kept server-side. `?effect=aged` and `?effect=ghost` are development options, with no added controls.
+## Debug view
 
-The browser releases camera tracks when hidden or on departure, and resumes when visible. It requests a screen wake lock where supported. No frames, landmarks, or images leave the device or persist. Bright perimeter bulbs and frame contribute screen light; physical brightness still depends on the device's brightness setting.
+`?debug=1` enables a translucent panel and optional face boxes/eye dots. It shows source resolution, detector/backend status, face confidence, scan timing, provider/request progress, render latency, reveal count, audio status, API request count, reported API cost and redacted recent errors/events. Debug-only controls test sounds, trigger a reveal, select a sound, adjust volume and configure the image provider. Normal mode has none of these controls.
+
+Other development query parameters:
+
+- `?test=portrait` feeds the included sample portrait through the real crop/detection/landmark/reveal pipeline without a physical camera. `?test=empty` supplies a blank scene. No visitor action is needed to run either fixture.
+- `?mute=1` suppresses audio for testing.
+- `?effect=ghost` or `?effect=aged` selects alternative effects without adding visible normal-use controls.
+- Combine parameters with `&`, e.g. `?test=portrait&debug=1&mute=1&backend=cpu`.
+
+## OpenRouter image editing
+
+The published Site uses a server-side `OPENROUTER_API_KEY` secret and defaults to the configured image provider automatically. `IMAGE_MODEL` sets the initial model; the default is `google/gemini-3.1-flash-lite-image` (Nano Banana 2 Lite), verified against OpenRouter's live catalog. The browser first reads `/api/mirror/config`, then posts captured JPEGs to `/api/mirror/edit`. The Worker calls `POST https://openrouter.ai/api/v1/images` with an editing prompt and `input_references`, then returns edited image bytes without exposing the key.
+
+In `?debug=1`, the key status is only “configured on server”. **Use image model** selects one of the supported Gemini image models; **Use dummy** switches to the local effect for this tab. Sound, volume, model and provider choices are stored in the tab's `sessionStorage`; no API key is stored there or in the browser bundle. A fresh tab defaults to the real server provider when configured. Local preview has no production secrets and defaults to dummy mode.
+
+With the server model enabled, automatic face snapshots go to OpenRouter and its selected model provider, and requests are billed. The live camera remains visible until the edited result arrives; image and sound then appear together. The server handles only one in-flight request per visitor per isolate, validates image size/type and the allowed model, rejects cross-origin browser writes, and relies on the confirmed owner-private Sites dispatch for access control. Sites service access is supported for diagnostics. Secrets are never returned in config, image responses or errors.
+
+Face loss, page hiding, source changes or provider changes abort the local request and discard stale responses. Aborting HTTP does not guarantee cancellation or non-billing upstream. Requests time out after 80 seconds on the server (90 in the browser). Most failures back off ten seconds; configuration/auth/balance errors pause until settings are reapplied. Errors are visible in debug; no silent dummy fallback disguises a failed model request.
+
+References: https://openrouter.ai/blog/tutorials/nano-banana/ and https://openrouter.ai/api/v1/images/models .
 
 ## Validation
 
-- `node --check dist/app.js`, `node --check dist/effects.js`, `node --check dist/cycle.js`.
-- `node tests/cycle.test.mjs` verifies that empty scenes do not trigger, steady faces automatically trigger, only one render runs at a time, reveals return to live, remaining visitors repeat, and disappearance/movement/reset invalidate stale results.
-- Browser fixtures: `?test=portrait` uses the sample photograph through the same crop, detection, landmark, controller and transformation pipeline; `?test=empty` uses an empty image. These require no clicks or camera hardware. Runtime observations are exposed as `data-phase`, `data-faces`, `data-detections` and `data-reveals` on `#mirror` without visible debug UI.
-- Physical iPad camera permission, sustained performance, illumination, and screen wake-lock behavior still require a device check.
+- `node --check assets/app.js` (also `assets/audio.js`, `cycle.js`, `effects.js`, `provider.js`).
+- `node tests/cycle.test.mjs`: empty scenes, immediate first capture, one in-flight capture, reveal timing, repeat, departure, normal movement, major position changes, reset, error backoff.
+- `node tests/provider.test.mjs`: reference-image request structure, model options/aspect ratio, image decoding, costs, authentication header, key redaction, HTTP and network failures. Uses mocked HTTP; no paid requests.
+- Browser QA: scan 1 triggers reveal 1; repeated automatic reveals; debug controls/overlay; audio unlock and all three sound variants; server-provider status and unavailable-provider handling. End-to-end paid-model checks use only the AI-generated test portrait.
+- `node scripts/validate-artifact.mjs` and `node tests/worker.test.mjs`: Worker artifact, embedded assets, secret-free configuration, server authentication, successful image responses, origin/type/model checks and redacted upstream errors.
+- Physical iPad camera/speaker behavior, sustained device performance and illumination still require a device check. Browser audio requires a page gesture. Model latency remains in addition to capture/detection time.
 
-## Asset provenance
+## Assets and privacy
 
-`dist/portrait.jpg` is the previously generated sample portrait, used only by the explicit browser test fixture; it never appears in normal camera mode. It was generated with the built-in image-generation tool as a neutral, centered adult portrait against a dark charcoal background. Third-party license: `dist/vendor/LICENSE` and `NOTICE.txt`.
+Local dummy mode sends no camera frames or landmarks anywhere and retains them only in memory. Remote mode sends captured JPEGs to OpenRouter as described above. Face detection is geometric tracking, not identity recognition. `assets/portrait.jpg` is the previously generated sample photo used only by the explicit test fixture, never normal camera mode. Third-party face-api.js/model licenses are in `assets/vendor/LICENSE` and `NOTICE.txt`. Horror audio is synthesized by this project.
