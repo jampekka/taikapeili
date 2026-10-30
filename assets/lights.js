@@ -1,6 +1,8 @@
-// Three bright bursts aligned to the loudness peaks of the 1.6 s come-closer recording.
-// Precomputed once: no live audio analysis or extra frame processing.
-export const APPROACH_BLINKS=[[0,.03],[150,1],[400,.03],[500,1],[700,.03],[1050,1],[1200,.03],[1600,1]].map(([ms,opacity])=>({offset:ms/1600,opacity,easing:'steps(1,end)'}));
+// Three regular groups of three 60 ms flashes during the 1.6 s come-closer clip.
+const blinkSteps=[[0,.03]];
+for(const start of [100,600,1100])for(let i=0;i<3;i++)blinkSteps.push([start+i*120,1],[start+i*120+60,.03]);
+blinkSteps.push([1600,1]);
+export const APPROACH_BLINKS=blinkSteps.map(([ms,opacity])=>({offset:ms/1600,opacity,easing:'steps(1,end)'}));
 
 // Equal spacing along each edge, with a shared target pitch and unique corners.
 export function lampPositions(width,height,diameter,inset){
