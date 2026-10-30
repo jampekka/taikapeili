@@ -7,19 +7,23 @@ export class MirrorRun {
   if(present){this.absentSince=null;return}
   if(this.absentSince===null)this.absentSince=now;
   const absentFor=now-this.absentSince;
-  if((this.state==='running'||this.state==='instruction')&&absentFor>=1000)this.cancel();
+  if((this.state==='approach'||this.state==='running'||this.state==='instruction')&&absentFor>=1000)this.cancel();
   if(absentFor>=3000){this.armed=true;if(this.state==='finished')this.setState('idle')}
  }
  cancel(){const run=this.active;this.active=null;run?.controller.abort();this.setState('finished')}
- start({generate,sequence,beforeReveal=async image=>image,reveal,afterReveal=async()=>{},instruction=null,generateAfterSequence=false}){
+ start({generate,sequence,approach=null,beforeReveal=async image=>image,reveal,afterReveal=async()=>{},instruction=null,generateAfterSequence=false}){
   if(this.state!=='idle'||!this.armed)return false;
   this.armed=false;
   const run={controller:new AbortController(),started:performance.now(),imageReady:false,sequenceDone:false,generateAfterSequence};
-  this.active=run;this.error=null;this.setState('running');
+  this.active=run;this.error=null;this.setState(approach?'approach':'running');
   const signal=run.controller.signal;
-  const cues=Promise.resolve().then(()=>sequence(signal)).then(()=>{run.sequenceDone=true});
+  const ready=approach?Promise.resolve().then(()=>approach(signal)).then(()=>{
+   if(this.active!==run||signal.aborted)throw new DOMException('Cancelled','AbortError');
+   this.setState('running');
+  }):Promise.resolve();
+  const cues=ready.then(()=>sequence(signal)).then(()=>{run.sequenceDone=true});
   const startImage=()=>{if(signal.aborted)throw new DOMException('Cancelled','AbortError');return generate(signal)};
-  const image=(generateAfterSequence?cues.then(startImage):Promise.resolve().then(startImage)).then(value=>{run.imageReady=true;return value});
+  const image=(generateAfterSequence?cues.then(startImage):ready.then(startImage)).then(value=>{run.imageReady=true;return value});
   run.done=Promise.all([image,cues]).then(async([image])=>{
    if(this.active!==run||signal.aborted)return;
    const prepared=await beforeReveal(image,signal);

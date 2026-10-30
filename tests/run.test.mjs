@@ -60,3 +60,15 @@ console.log('PASS: 1s cancellation, 3s absence rearm, brief-loss recovery, no re
  const laugh=deferred();const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:()=>assert.fail('No warning to an absent viewer')});await flush();r.observeFace(false,100);laugh.resolve();await flush();assert.equal(r.state,'finished');
 }
 console.log('PASS: stern instruction after laugh, one playback, presence-controlled hold, absence cancellation, no replay, skip if viewer already left');
+{
+ const close=deferred(),cues=deferred();let sequences=0,images=0,reveals=0;
+ const r=new MirrorRun();r.observeFace(true,0);r.start({approach:()=>close.promise,sequence:()=>{sequences++;return cues.promise},generate:()=>{images++;return 1},reveal:()=>reveals++});
+ await flush();assert.equal(r.state,'approach');assert.equal(images,0,'No image request before close enough');assert.equal(sequences,0,'Secret/look sequence waits for close enough');assert.equal(r.start({}),false,'Repeated face detections cannot start more approach loops');
+ close.resolve();await flush();assert.equal(r.state,'running');assert.equal(sequences,1);assert.equal(images,1);cues.resolve();await flush();assert.equal(reveals,1);
+}
+{
+ const close=deferred();let sequences=0;
+ const r=new MirrorRun();r.observeFace(true,0);r.start({approach:()=>close.promise,sequence:()=>sequences++,generate:()=>assert.fail('Cancelled approach cannot capture'),reveal:()=>assert.fail('Cancelled approach cannot reveal')});
+ await flush();r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'approach');r.observeFace(false,1100);assert.equal(r.state,'finished');close.resolve();await flush();assert.equal(sequences,0);r.observeFace(false,3100);assert.equal(r.state,'idle');
+}
+console.log('PASS: approach gates narration and generation; one approach loop; 1s loss cancellation and 3s rearm');

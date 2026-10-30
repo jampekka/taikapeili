@@ -4,7 +4,7 @@ Dummy mode is the default on every page load. It makes no image API calls. The U
 
 ## One run
 
-`assets/run.js` owns the lifecycle. Face presence while armed starts a two-second lead-in, then the three Finnish whisper recordings. One second without a face cancels the sequence. Three continuous seconds without a face rearm it; a continuously present face cannot repeat it. Position and size do not gate the sequence.
+`assets/run.js` owns the lifecycle. Face presence while armed starts a two-second lead-in, then repeats “Tule lähemmäksi.” while the face is below 45% of the mirrored viewport width, leaving 1.2 seconds between recordings. Once close enough, the current prompt finishes and the secret/look sequence runs once. Distance does not gate it again after that point. Debug exposes the threshold for device tuning. One second without a face cancels the sequence. Three continuous seconds without a face rearm it; a continuously present face cannot repeat it. Position and size do not gate the sequence.
 
 ## Tracking and reveal
 
@@ -12,7 +12,7 @@ A worker processes the full, uncropped camera image at up to 10 Hz, with at most
 
 When the whispers finish, dummy mode captures the latest camera frame and draws a colour tint, dark eye sockets and pale eyes. No segmentation, masks, pixel loops, decorative makeup, or additional inference occur in the reveal path. No portrait rotation or intermediate crop can cut away part of the captured image. The current eye midpoint anchors the translation/scale. Image preparation and frame age at reveal are reported separately.
 
-The separate 2D reveal canvas retains the complete snapshot, with the 50 ms zoom overshoot, fading shake and brightness surges, and ends at 650 ms. Reduced motion is static. Rectangular perimeter lamps, including corner bulbs, go off during the reveal. The laugh starts 400 ms after the reveal ends. Then, if a face is present, the quiet ending instruction plays once without visible text. One second of absence stops it.
+The separate 2D reveal canvas retains the complete snapshot, with the 50 ms zoom overshoot, fading shake and brightness surges, and ends at 650 ms. Reduced motion is static. Rectangular perimeter lamps are laid out responsively with a common target pitch, equal spacing on each edge, and unique corner bulbs; they go off during the reveal. The laugh starts 400 ms after the reveal ends. Then, if a face is present, the quiet ending instruction plays once without visible text. One second of absence stops it.
 
 The live mirror retains the radial RGB warp. Debug boxes and eye crosshairs follow that same coordinate transform. Optional remote image generation retains its completion barrier and dummy fallback.
 
