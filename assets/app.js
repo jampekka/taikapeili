@@ -12,7 +12,7 @@ import {safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
 const revealMs=650,encoreMs=450,lookMs=4000,startDelayMs=2000,laughDelayMs=400;
-let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null,scareEndsAt=0;
+let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null,scareEndsAt=0,approachPulse=null;
 let source=null,stream=null,detector=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null;
 let config=loadSettings();
 const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,frameAgeMs:null,error:'none',sound:'locked',eyes:'not measured'};
@@ -24,6 +24,7 @@ const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alp
 const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),onTick:()=>drawTracking(trackedFaces),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 renderer.strength=config.morph;
 const run=new MirrorRun(state=>{
+ if(state!=='approach'){approachPulse?.cancel();approachPulse=null}
  mirror.dataset.phase=state==='running'?'processing':state==='reveal'?'reveal':'live';
  mirror.dataset.requesting=String(state==='running');
  if(state!=='instruction')audio.stop('instruction');
@@ -40,7 +41,14 @@ function playActiveCue(){
  if(result===activeCue.id){activeCue.played=true;log(`Whisper played: ${activeCue.id}`)}
  updateAudioPrompt();updateDebug();
 }
-function cue(text,id,duration){activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;log(text);playActiveCue()}
+function cue(text,id,duration){
+ activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
+ if(id==='come'){
+  approachPulse?.cancel();
+  approachPulse=lightFrame.animate([{opacity:1},{opacity:renderer.reduced?.85:.65,offset:.45},{opacity:1}],{duration:1200,easing:'ease-in-out'});
+ }
+ log(text);playActiveCue();
+}
 async function approach(signal){
  log('Approach · 2s lead-in');await delay(startDelayMs,signal);
  let speakingUntil=0,nextPromptAt=0,prompted=false;
