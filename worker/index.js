@@ -1,5 +1,4 @@
 // The build embeds BUNDLED_ASSETS and the shared provider functions in this module.
-const activeEdits=new Set();
 const responseJSON=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const MODEL_IDS=new Set(Object.keys(MODEL_PROFILES));
 export default {
@@ -17,7 +16,6 @@ export default {
 
    if(!request.headers.get('content-type')?.startsWith('application/json'))return responseJSON({error:'JSON body required'},415);
    if(Number(request.headers.get('content-length'))>4000000)return responseJSON({error:'Image request too large'},413);
-   const user=request.headers.get('oai-authenticated-user-id')||'private-owner-service';
 
    let body;
    try{const raw=await request.text();if(raw.length>4000000)return responseJSON({error:'Image request too large'},413);body=JSON.parse(raw)}catch{return responseJSON({error:'Invalid JSON'},400)}
@@ -27,14 +25,13 @@ export default {
    if(!apiKey)return responseJSON({error:'Selected image provider is not configured'},503);
 
    if(typeof body.imageData!=='string'||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(body.imageData))return responseJSON({error:'Invalid captured image'},400);
-   if(activeEdits.has(user))return responseJSON({error:'An image edit is already in progress'},409);
-   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),80000);activeEdits.add(user);
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),80000);
    const cancel=()=>controller.abort();request.signal.addEventListener('abort',cancel,{once:true});if(request.signal.aborted)cancel();
    try{
     const started=Date.now();
     const result=await (openai?requestOpenAIImage:requestImage)({apiKey,imageData:body.imageData,model,effect:['zombie','ghost','aged'].includes(body.effect)?body.effect:'zombie',ratio:Math.max(.25,Math.min(4,Number(body.ratio)||1)),resolution:['512','1K'].includes(body.resolution)?body.resolution:undefined,signal:controller.signal});
     return responseJSON({dataUrl:result.dataUrl,cost:result.cost,model,providerMs:Date.now()-started,requestId:result.requestId||null});
-   }catch(error){const message=safeError(error,apiKey);const status=controller.signal.aborted?504:/(?:OpenRouter|OpenAI) (400|401|402|403|404|429):/.test(message)?422:502;return responseJSON({error:controller.signal.aborted?'Image provider timed out':message},status)}finally{clearTimeout(timer);request.signal.removeEventListener('abort',cancel);activeEdits.delete(user)}
+   }catch(error){const message=safeError(error,apiKey);const status=controller.signal.aborted?504:/(?:OpenRouter|OpenAI) (400|401|402|403|404|429):/.test(message)?422:502;return responseJSON({error:controller.signal.aborted?'Image provider timed out':message},status)}finally{clearTimeout(timer);request.signal.removeEventListener('abort',cancel)}
   }
   if(url.pathname.startsWith('/api/'))return responseJSON({error:'Not found'},404);
   if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});

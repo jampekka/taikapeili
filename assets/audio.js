@@ -1,4 +1,4 @@
-const FILES={shriek:'shriek-web.mp3',sting:'sting-web.mp3',growl:'growl-web.mp3',come:'come-closer.mp3',look:'look-deeper.mp3'};
+const FILES={scare:'scream.mp3',come:'come-closer.mp3',look:'look-deeper.mp3'};
 export class HorrorAudio {
  constructor(){this.context=null;this.output=null;this.voices=[];this.volume=.65;this.last='none';this.raw=new Map();this.buffers=new Map();this.preload()}
  get status(){if(!this.context)return 'locked';return this.context.state==='running'&&!this.buffers.size?'loading samples':this.context.state}
@@ -12,5 +12,5 @@ export class HorrorAudio {
  stop(group){for(const voice of this.voices){if(!group||voice.group===group){try{voice.node.stop()}catch{}}}this.voices=this.voices.filter(v=>group&&v.group!==group)}
  playSample(id,group='scare',gain=1){if(this.context?.state!=='running')return 'locked';const buffer=this.buffers.get(id);if(!buffer)return 'samples loading';this.stop(group);const source=this.context.createBufferSource(),level=this.context.createGain();source.buffer=buffer;level.gain.value=gain;source.connect(level);level.connect(this.output);source.start();source.onended=()=>{source.disconnect();level.disconnect();this.voices=this.voices.filter(v=>v.node!==source)};this.voices.push({node:source,group});return id}
  say(id){return this.playSample(id,'whisper',.85)}
- play(choice='random'){this.stop('whisper');const available=['shriek','sting','growl'].filter(id=>this.buffers.has(id));if(!available.length)return this.context?.state==='running'?'samples loading':'locked';const pool=available.filter(id=>id!==this.last);const selected=available.includes(choice)?choice:(pool.length?pool:available)[Math.floor(Math.random()*(pool.length||available.length))];const played=this.playSample(selected,'scare',1);if(played===selected)this.last=selected;return played}
+ play(){this.stop('whisper');return this.playSample('scare','scare',1)}
 }

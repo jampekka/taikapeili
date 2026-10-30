@@ -1,4 +1,5 @@
-# Mirror follow-up
+# Follow-up
 
-- Check camera exposure recovery, whisper intelligibility and sustained performance on the physical iPad.
-- Recover original source URLs and attribution for the three web sound samples; the interrupted session left the files without provenance notes.
+- Check the new scream, eye crop and 650 ms reveal on the physical iPad.
+- Refine dummy makeup after testing on real faces.
+- Robust triggering/rearming and identity matching are intentionally deferred.

@@ -16,12 +16,9 @@ try{
  globalThis.fetch=async(url,options)=>{sent={url,options};return new Response(JSON.stringify({data:[{b64_json:'aGVsbG8='}]}),{headers:{'x-request-id':'req-worker'}})};
  const config=await (await worker.fetch(new Request('https://mirror.test/api/mirror/config'),env)).json();assert.equal(config.configured,true);assert.equal(config.model,body.model);assert.equal(JSON.stringify(config).includes(env.OPENAI_API_KEY),false);
  const response=await worker.fetch(post(),env),payload=await response.json();assert.equal(response.status,200);assert.equal(payload.requestId,'req-worker');assert.equal(typeof payload.providerMs,'number');assert.equal(sent.url,'https://api.openai.com/v1/images/edits');
- // Cancel a held request and prove the server unlocks for the next request.
- let started;const ready=new Promise(resolve=>started=resolve);
- globalThis.fetch=async(url,options)=>new Promise((resolve,reject)=>{options.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true});started()});
- const cancel=new AbortController(),pending=worker.fetch(post(cancel.signal),env);await ready;
- assert.equal((await worker.fetch(post(),env)).status,409);cancel.abort();assert.equal((await pending).status,504);
- globalThis.fetch=async()=>new Response(JSON.stringify({data:[{b64_json:'aGVsbG8='}]}));assert.equal((await worker.fetch(post(),env)).status,200);
+ // No per-user global queue or busy lock: the single run owner lives in the client.
+ const responses=await Promise.all([worker.fetch(post(),env),worker.fetch(post(),env)]);
+ assert.deepEqual(responses.map(r=>r.status),[200,200]);
  const transport=await requestServerImage({imageData,fetchImpl:async()=>new Response(JSON.stringify(payload))});assert.equal(transport.providerMs,payload.providerMs);assert.equal(transport.requestId,'req-worker');
 }finally{globalThis.fetch=oldFetch}
-console.log('PASS: direct Flare edit, JPEG/quality/size, timing/request ID, no fabricated cost, key redaction, server configuration, cancellation releases busy lock');
+console.log('PASS: direct Flare edit, JPEG/quality/size, timing/request ID, no fabricated cost, key redaction, server configuration, no global busy lock');
