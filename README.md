@@ -37,3 +37,7 @@ Tests: `node tests/audio.test.mjs`, `node tests/overlay.test.mjs`, `node tests/r
 The run tests cover both completion orders, duplicate detection suppression, exactly one reveal, explicit shutdown, and error recovery. Tracker tests check the camera/display coordinate mapping and single-flight behavior. Effect tests forbid pixel readbacks and check complete-image drawing. The real face detector can be tested with `?test=portrait&debug=1&mute=1`; `?test=empty` must not trigger. Add `&presenceCycle=1` for a controlled disappearance/reappearance fixture. Add `&move=1` to shift the fixture down during the sequence and verify the latest-eye anchor. Add `&delay=12000` in debug to exercise image preparation outlasting the sequence without making paid calls.
 
 Physical iPad camera/speaker behavior and GPU rendering still require device testing. All photos stay in browser memory in dummy mode. Remote mode uploads snapshots to the selected image provider. The fictional `portrait.jpg` fixture was generated with imagegen. Vendor notices are in `assets/vendor/`.
+
+## Screen awake
+
+While the mirror is open, it requests the Screen Wake Lock API independently of face presence and fullscreen. It releases the lock when hidden or stopped and requests it again when the mirror resumes. Requests are coalesced, and a late grant after shutdown is released. Unsupported or denied requests do not block startup. Debug shows the actual wake-lock status. Device power policies can still deny or release it.

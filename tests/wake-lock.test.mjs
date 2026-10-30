@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {ScreenWakeLock} from '../assets/wake-lock.js';
+const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};
+const sentinel=()=>({released:false,listeners:[],addEventListener(type,fn){this.listeners.push(fn)},async release(){this.released=true;for(const fn of this.listeners)fn()}});
+const doc={hidden:false};let requests=0,next=deferred();
+const nav={wakeLock:{request(type){assert.equal(type,'screen');requests++;return next.promise}}};
+const manager=new ScreenWakeLock(nav,doc),first=manager.acquire();assert.equal(manager.acquire(),first);assert.equal(requests,1,'Only one request in flight');
+const one=sentinel();next.resolve(one);assert.equal(await first,true);assert.equal(manager.status,'active');assert.equal(await manager.acquire(),true);assert.equal(requests,1);
+await one.release();assert.equal(manager.status,'released');next=deferred();const reacquired=manager.acquire();next.resolve(sentinel());assert.equal(await reacquired,true);assert.equal(requests,2);await manager.release();assert.equal(manager.status,'released');
+next=deferred();const pending=manager.acquire();await manager.release();const late=sentinel();next.resolve(late);assert.equal(await pending,false);assert.equal(late.released,true,'A late grant after shutdown must not keep the display awake');
+doc.hidden=true;await manager.acquire();assert.equal(requests,3,'No request while hidden');doc.hidden=false;
+const denied=new ScreenWakeLock({wakeLock:{request(){return Promise.reject(Error('power policy'))}}},doc);assert.equal(await denied.acquire(),false);assert.equal(denied.status,'unavailable');
+const unsupported=new ScreenWakeLock({},doc);assert.equal(await unsupported.acquire(),false);assert.equal(unsupported.status,'unsupported');
+let failures=0;const syncDenied=new ScreenWakeLock({wakeLock:{request(){failures++;throw Error('denied')}}},doc);await syncDenied.acquire();await syncDenied.acquire();assert.equal(failures,2,'Synchronous failure must not retain a stuck pending request');
+console.log('PASS: acquire/coalesce, release, reacquire, hidden page, late grant after shutdown, denied and unsupported fallback');
