@@ -1,10 +1,17 @@
 // Map an unwarped, mirrored camera point through the live renderer's green channel.
 // Only the debug box uses this inverse. Detection and run timing remain unchanged.
-export function ripplePoint(p,{aspect=1,ripples=[]}={}){
- const ex=2*p.x-1,ey=2*p.y-1,fade=Math.max(0,(1-ex*ex)*(1-ey*ey));let x=p.x,y=p.y;
+export function ripplePoint(p,{aspect=1,ripples=[],sources=[],speechPower=0}={}){
+ const smooth=(a,b,v)=>{const t=Math.max(0,Math.min(1,(v-a)/(b-a)));return t*t*(3-2*t)};
+ const sideDistance=Math.min(p.x,1-p.x),fade=smooth(0,.015,sideDistance)*smooth(0,.015,Math.min(p.y,1-p.y))*(1-smooth(.12,.36,sideDistance));
+ let x=p.x,y=p.y;
+ if(speechPower>.00001)for(const [originX,originY] of sources){
+  const dx=(p.x-originX)*aspect,dy=p.y-originY,radius=Math.hypot(dx,dy);
+  const amount=-speechPower*Math.exp(-Math.pow(radius/(aspect*.16),2))*fade;
+  x+=dx*amount/aspect;y+=dy*amount;
+ }
  for(const [age,amplitude,originX,originY] of ripples){
   const dx=(p.x-originX)*aspect,dy=p.y-originY,radius=Math.hypot(dx,dy),front=radius-age*.48;
-  const offset=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288)*Math.exp(-age*1.15);
+  const offset=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288-radius/(aspect*.18)-age*3.5);
   const t=Math.min(1,radius/.06),amount=offset*fade*t*t*(3-2*t)/Math.max(radius,.0001);
   x+=dx*amount/aspect;y+=dy*amount;
  }
@@ -22,6 +29,6 @@ export function sampleLivePoint(p,view={},channel=0,voiced=ripplePoint(p,view)){
 export function projectLivePoint(point,view={}){
  if(view.flipY){const projected=projectLivePoint({x:point.x,y:1-point.y},{...view,flipY:false});return {x:projected.x,y:1-projected.y}}
  const cover=view.cover||[1,1],target={x:1-((point.x-.5)*cover[0]+.5),y:(point.y-.5)*cover[1]+.5};
- let p={...point};for(let i=0;i<16;i++){const q=sampleLivePoint(p,view);p={x:p.x+(q.x-target.x)/cover[0],y:p.y-(q.y-target.y)/cover[1]}}
+ let p={...point};for(let i=0;i<48;i++){const q=sampleLivePoint(p,view),dx=(q.x-target.x)/cover[0],dy=(q.y-target.y)/cover[1];if(Math.abs(dx)+Math.abs(dy)<1e-7)break;p={x:p.x+dx,y:p.y-dy}}
  return p;
 }

@@ -29,11 +29,13 @@ try{
  for(const [id,sound] of Object.entries(SCREAMS)){assert.equal(audio.play(undefined,id),id);assert.equal(started.at(-1),'./audio/'+sound.file);assert.deepEqual(startArgs.at(-1),[],'Every full selection plays without truncation')}
  assert.equal(audio.play(undefined,'invalid'),'scare');
  audio.stop();meterSample=.02;assert.equal(audio.speechLevel(),0,'No stale pulse after speech stops');
- audio.say('come');assert.ok(Math.abs(audio.speechLevel()-.48)<1e-6);assert.equal(audio.voices.at(-1).node.connections[0].connections[0],audio.speechMeter,'Whispers route through the speech meter');
- meterSample=1;assert.equal(audio.speechLevel(),1,'Pulse level is bounded');
+ audio.say('come');assert.ok(Math.abs(audio.speechLevel()-(1-Math.exp(-(.02-.0015)*12-(.02-.004)*1.5)))<1e-6);assert.equal(audio.voices.at(-1).node.connections[0].connections[0],audio.speechMeter,'Whispers route through the speech meter');
+ const quiet=audio.speechLevel();meterSample=.08;const medium=audio.speechLevel();meterSample=.2;const loud=audio.speechLevel();assert.ok(quiet<medium&&medium<loud&&loud<1,'Live dynamics remain distinct instead of clipping at moderate volume');
+ meterSample=.001;assert.equal(audio.speechLevel(),0,'Near-silence is gated');meterSample=1;assert.ok(audio.speechLevel()>.99&&audio.speechLevel()<=1,'Pulse level is bounded');
+ assert.equal(audio.speechSamples.length,1024,'Live analysis uses a short 1024-sample playback window');
  audio.stop();audio.laugh();assert.equal(audio.speechLevel(),0,'Laugh cannot drive speaking animation');assert.equal(audio.voices.at(-1).node.connections[0].connections[0],audio.output);
  audio.play();assert.equal(audio.speechLevel(),0,'Scream cannot drive speaking animation');
- audio.warning();assert.equal(audio.speechLevel(),1,'Ending speech also drives the pulse');audio.stop('instruction');assert.equal(audio.speechLevel(),0);
+ audio.warning();assert.ok(audio.speechLevel()>.99,'Ending speech also drives the pulse');audio.stop('instruction');assert.equal(audio.speechLevel(),0);
  audio.context.state='interrupted';audio.context.onstatechange?.();assert.equal(audio.status,'locked');await audio.unlock();assert.equal(audio.say('come'),'come','Resume after interruption retains decoded whispers');
  globalThis.fetch=async path=>new Response(path,{status:!failed&&path.includes('look-deeper')?503:200});
  const retry=new HorrorAudio();await assert.rejects(retry.prepare(),/Audio unavailable/);assert.equal(retry.status,'sample error');failed=true;await retry.unlock();assert.equal(retry.ready,true);assert.equal(retry.say('look'),'look','A failed asset load is retryable');

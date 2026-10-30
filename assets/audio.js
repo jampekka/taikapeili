@@ -10,7 +10,7 @@ export class HorrorAudio {
   this.context=new Audio();this.context.onstatechange=()=>this.onStateChange();
   const limiter=this.context.createDynamicsCompressor();limiter.threshold.value=-8;limiter.knee.value=10;limiter.ratio.value=6;limiter.attack.value=.003;limiter.release.value=.12;
   this.output=this.context.createGain();this.output.gain.value=this.volume*.8;this.output.connect(limiter);limiter.connect(this.context.destination);
-  this.speechMeter=this.context.createAnalyser();this.speechMeter.fftSize=256;this.speechMeter.connect(this.output);this.speechSamples=new Float32Array(256);
+  this.speechMeter=this.context.createAnalyser();this.speechMeter.fftSize=1024;this.speechMeter.connect(this.output);this.speechSamples=new Float32Array(1024);
  }
  prepare(){
   if(this.preparing)return this.preparing;
@@ -34,9 +34,11 @@ export class HorrorAudio {
  duration(id,fallback=3){return this.buffers.get(id)?.duration||fallback}
  speechLevel(){
   if(this.context?.state!=='running'||!this.voices.some(v=>v.group==='whisper'||v.group==='instruction'))return 0;
-  this.speechMeter.getFloatTimeDomainData(this.speechSamples);let sum=0;
-  for(const sample of this.speechSamples)sum+=sample*sample;
-  return Math.min(1,Math.sqrt(sum/this.speechSamples.length)*24);
+  this.speechMeter.getFloatTimeDomainData(this.speechSamples);let sum=0,peak=0;
+  for(const sample of this.speechSamples){sum+=sample*sample;peak=Math.max(peak,Math.abs(sample))}
+  // A live ~23 ms window: retain syllable/consonant dynamics without hard clipping.
+  const rms=Math.sqrt(sum/this.speechSamples.length);
+  return 1-Math.exp(-Math.max(0,rms-.0015)*12-Math.max(0,peak-.004)*1.5);
  }
  setVolume(value){this.volume=Math.max(0,Math.min(1,value));if(this.output)this.output.gain.setTargetAtTime(this.volume*.8,this.context.currentTime,.02)}
  stop(group){for(const voice of this.voices)if(!group||voice.group===group){try{voice.node.stop()}catch{}}this.voices=this.voices.filter(v=>group&&v.group!==group)}

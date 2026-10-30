@@ -1,8 +1,10 @@
 import {revealZoom,revealImpact} from './portrait.js';
 import {projectLivePoint,sampleLivePoint,ripplePoint} from './overlay.js';
 const vertex=`attribute vec2 position;varying vec2 uv;void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
-const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;uniform float aspect;uniform vec4 ripples[8];
-vec2 ripplePoint(vec2 p){vec2 edge=2.*p-1.;float fade=max(0.,(1.-edge.x*edge.x)*(1.-edge.y*edge.y));vec2 result=p;for(int i=0;i<8;i++){vec2 d=(p-ripples[i].zw)*vec2(aspect,1.);float radius=length(d);float age=ripples[i].x,amp=ripples[i].y;float front=radius-age*.48;float offset=amp*sin(front*39.269908)*exp(-front*front/.0288)*exp(-age*1.15);float t=clamp(radius/.06,0.,1.);float amount=offset*fade*t*t*(3.-2.*t);result+=d/max(radius,.0001)*amount/vec2(aspect,1.);}return result;}
+const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;uniform float aspect;uniform vec4 ripples[8];uniform vec2 sources[6];uniform float speechPower;
+vec2 ripplePoint(vec2 p){float sideDistance=min(p.x,1.-p.x);float fade=smoothstep(0.,.015,sideDistance)*smoothstep(0.,.015,min(p.y,1.-p.y))*(1.-smoothstep(.12,.36,sideDistance));vec2 result=p;
+if(speechPower>.00001){for(int i=0;i<6;i++){vec2 d=(p-sources[i])*vec2(aspect,1.);float radius=length(d);float amount=-speechPower*exp(-pow(radius/(aspect*.16),2.))*fade;result+=d*amount/vec2(aspect,1.);}}
+for(int i=0;i<8;i++){vec2 d=(p-ripples[i].zw)*vec2(aspect,1.);float radius=length(d);float age=ripples[i].x,amp=ripples[i].y;float front=radius-age*.48;float offset=amp*sin(front*39.269908)*exp(-front*front/.0288-radius/(aspect*.18)-age*3.5);float t=clamp(radius/.06,0.,1.);float amount=offset*fade*t*t*(3.-2.*t);result+=d/max(radius,.0001)*amount/vec2(aspect,1.);}return result;}
 vec2 warp(vec2 p,vec2 voiced,float channel){vec2 q=(p+(voiced-p)*(1.+channel*.45)-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirror>.5)q.x=1.-q.x;vec2 d=q-vec2(.5+.08*sin(time*.31),.48+.07*cos(time*.27));float radius=length(d);vec2 edge=2.*p-1.;float falloff=smoothstep(0.,.65,max(0.,(1.-edge.x*edge.x)*(1.-edge.y*edge.y)));float amount=power*falloff;q+=d*sin(radius*13.-time*1.9+channel*.8)*amount*.65;q.x+=sin(q.y*9.+time*.8+channel*.26)*amount*.45+sin(q.y*24.-time*1.3+channel)*amount*.12;q.y+=sin(q.x*11.-time*.6+channel*.33)*amount*.4;return q;}
 vec4 sampleAt(vec2 p){if(scare>.5&&(p.x<0.||p.y<0.||p.x>1.||p.y>1.))return vec4(0.);return texture2D(image,clamp(p,vec2(0.),vec2(1.)));}
 void main(){vec2 voiced=ripplePoint(uv);vec4 r=sampleAt(warp(uv,voiced,-1.)),g=sampleAt(warp(uv,voiced,0.)),b=sampleAt(warp(uv,voiced,1.));vec3 rgb=vec3(r.r*r.a,g.g*g.a,b.b*b.a);gl_FragColor=vec4(rgb,1.);}`;
@@ -13,14 +15,14 @@ export function rippleOrigin(index,time){
  return [base[0]+.025*Math.cos(angle),base[1]+.055*Math.sin(angle)];
 }
 export class MirrorRenderer {
- constructor(canvas,{onTick=()=>{},voiceLevel=()=>0,reduced=false,revealCanvas=null}={}){this.voiceLevel=voiceLevel;this.speechPulse=0;this.ripples=[];this.rippleIndex=0;this.lastRippleAt=-Infinity;this.speechAt=null;this.revealCanvas=revealCanvas;this.revealContext=revealCanvas?.getContext('2d',{alpha:false});if(revealCanvas)revealCanvas.hidden=true;this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.lastDraw=0;this.strength=.7;
+ constructor(canvas,{onTick=()=>{},voiceLevel=()=>0,reduced=false,revealCanvas=null}={}){this.voiceLevel=voiceLevel;this.speechPulse=0;this.lastVoice=0;this.ripples=[];this.rippleIndex=0;this.lastRippleAt=-Infinity;this.speechAt=null;this.revealCanvas=revealCanvas;this.revealContext=revealCanvas?.getContext('2d',{alpha:false});if(revealCanvas)revealCanvas.hidden=true;this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.lastDraw=0;this.strength=.7;
   try{this.gl=canvas.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false})}catch{}
   if(this.gl){try{this.initGL();this.backend='WebGL RGB warp'}catch{this.gl=null}}
   if(!this.gl){const replacement=document.createElement('canvas');replacement.id=canvas.id;replacement.className=canvas.className;canvas.replaceWith(replacement);this.canvas=replacement;this.ctx=replacement.getContext('2d',{alpha:false});this.scratch=document.createElement('canvas');this.sctx=this.scratch.getContext('2d',{willReadFrequently:true});this.backend='Canvas RGB warp'}
  }
- initGL(){const gl=this.gl;const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw new Error('Shader unavailable');return shader};const program=gl.createProgram();gl.attachShader(program,compile(gl.VERTEX_SHADER,vertex));gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error('Shader link failed');gl.useProgram(program);this.program=program;const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);const pos=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(pos);gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);this.uniforms={};for(const n of ['time','zoom','power','mirror','scare','cover','aspect','ripples[0]'])this.uniforms[n]=gl.getUniformLocation(program,n);this.texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true)}
+ initGL(){const gl=this.gl;const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw new Error('Shader unavailable');return shader};const program=gl.createProgram();gl.attachShader(program,compile(gl.VERTEX_SHADER,vertex));gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error('Shader link failed');gl.useProgram(program);this.program=program;const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);const pos=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(pos);gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);this.uniforms={};for(const n of ['time','zoom','power','mirror','scare','cover','aspect','ripples[0]','sources[0]','speechPower'])this.uniforms[n]=gl.getUniformLocation(program,n);this.texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true)}
  start(source){this.source=source;if(this.running)return;this.running=true;this.tick(performance.now())}
- stop(){this.running=false;this.speechPulse=0;this.ripples=[];this.speechAt=null;cancelAnimationFrame(this.raf)}
+ stop(){this.running=false;this.speechPulse=0;this.lastVoice=0;this.ripples=[];this.speechAt=null;cancelAnimationFrame(this.raf)}
  show(image,duration=650,focus={x:.5,y:.42},target={x:.5,y:.42}){this.scareImage=image;this.focus=focus;this.target=target;this.scareAt=performance.now();this.until=this.scareAt+duration;this.drawReveal(this.scareAt)}
  clearReveal(){this.until=0;this.scareImage=null;if(this.revealCanvas)this.revealCanvas.hidden=true}
  drawReveal(now){
@@ -41,21 +43,26 @@ export class MirrorRenderer {
  }
  draw(now){const active=false;const image=this.source;if(!image)return;const iw=image.videoWidth||image.naturalWidth||image.width,ih=image.videoHeight||image.naturalHeight||image.height;if(!iw||!ih)return;
   const rect=this.canvas.getBoundingClientRect(),ratio=rect.width/Math.max(1,rect.height);const h=Math.min(this.gl?1080:320,Math.round((this.gl?1280:320)/ratio)),w=Math.round(h*ratio);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h}
-  // Speech emits travelling wave packets. Existing packets keep travelling in silence.
-  const voice=Math.max(0,Math.min(1,this.voiceLevel?.()||0));
+  // Analyse the current speech window every draw. Direct source lenses follow it;
+  // travelling rings are emitted by actual vocal rises, never a periodic timer.
+  const voice=this.reduced?0:Math.max(0,Math.min(1,this.voiceLevel?.()||0));
   const dt=this.speechAt==null?33:Math.max(0,Math.min(100,now-this.speechAt));this.speechAt=now;
-  const previous=this.speechPulse||0;
-  this.speechPulse=this.reduced?0:previous+(voice-previous)*(1-Math.exp(-dt/75));
-  this.ripples=this.reduced?[]:(this.ripples||[]).filter(r=>now-r.at<2400);
-  if(!this.reduced&&this.strength>0&&this.speechPulse>.06&&now-(this.lastRippleAt??-Infinity)>=280){
-   const origin=rippleOrigin(this.rippleIndex||0,now/1000);this.rippleIndex=(this.rippleIndex||0)+1;
-   this.ripples.push({at:now,amplitude:.036*this.strength*this.speechPulse,origin});this.ripples=this.ripples.slice(-8);this.lastRippleAt=now;
+  const previous=this.speechPulse||0,rise=Math.max(0,voice-(this.lastVoice||0));this.lastVoice=voice;
+  this.speechPulse=this.reduced?0:previous+(voice-previous)*(1-Math.exp(-dt/(voice>previous?12:65)));
+  this.ripples=this.reduced?[]:(this.ripples||[]).filter(r=>now-r.at<1250);
+  if(voice>.045&&this.strength>0&&(rise>.025||previous<.045)&&now-(this.lastRippleAt??-Infinity)>=65){
+   const attack=Math.min(1,rise*3),amplitude=.12*this.strength*(voice*.35+attack*.65);
+   // Each attack strikes both sides, with the pair advancing through the six anchors.
+   for(let i=0;i<2;i++){const origin=rippleOrigin(this.rippleIndex||0,now/1000);this.rippleIndex=(this.rippleIndex||0)+1;this.ripples.push({at:now,amplitude,origin})}
+   this.ripples=this.ripples.slice(-8);this.lastRippleAt=now;
   }
   const ripples=this.ripples.map(r=>[(now-r.at)/1000,r.amplitude,r.origin[0],this.gl?1-r.origin[1]:r.origin[1]]);
+  const sources=Array.from({length:6},(_,i)=>{const [x,y]=rippleOrigin(i,now/1000);return [x,this.gl?1-y:y]});
+  const speechPower=this.reduced?0:.65*this.strength*this.speechPulse;
   const zoom=1,power=(this.reduced?.006:.025)*this.strength;
   const imageRatio=iw/ih,cover=imageRatio>ratio?[ratio/imageRatio,1]:[1,imageRatio/ratio];
-  this.liveView={cover,power,time:now/1000,aspect:ratio,ripples,flipY:!!this.gl};
-  if(this.gl){const gl=this.gl;gl.viewport(0,0,w,h);gl.useProgram(this.program);gl.bindTexture(gl.TEXTURE_2D,this.texture);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)}catch{return}for(const [n,v] of Object.entries({time:now/1000,zoom,power,mirror:active?0:1,scare:active?1:0}))gl.uniform1f(this.uniforms[n],v);gl.uniform2f(this.uniforms.cover,...cover);gl.uniform1f(this.uniforms.aspect,ratio);const packets=new Float32Array(32);ripples.forEach((r,i)=>packets.set(r,i*4));gl.uniform4fv(this.uniforms['ripples[0]'],packets);gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}
+  this.liveView={cover,power,time:now/1000,aspect:ratio,ripples,sources,speechPower,flipY:!!this.gl};
+  if(this.gl){const gl=this.gl;gl.viewport(0,0,w,h);gl.useProgram(this.program);gl.bindTexture(gl.TEXTURE_2D,this.texture);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)}catch{return}for(const [n,v] of Object.entries({time:now/1000,zoom,power,mirror:active?0:1,scare:active?1:0}))gl.uniform1f(this.uniforms[n],v);gl.uniform2f(this.uniforms.cover,...cover);gl.uniform1f(this.uniforms.aspect,ratio);const packets=new Float32Array(32);ripples.forEach((r,i)=>packets.set(r,i*4));gl.uniform4fv(this.uniforms['ripples[0]'],packets);gl.uniform2fv(this.uniforms['sources[0]'],new Float32Array(sources.flat()));gl.uniform1f(this.uniforms.speechPower,speechPower);gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}
   else{this.drawCPU(image,w,h,this.liveView)}
  }
  projectPoint(point){return projectLivePoint(point,this.liveView)}
