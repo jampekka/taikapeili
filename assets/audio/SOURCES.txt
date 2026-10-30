@@ -12,4 +12,4 @@ Downloaded unchanged 2026-10-30.
 
 secret.mp3: “Näytän sinulle salaisuuden, älä kerro tästä kellekään.” Generated once with the same ElevenLabs eleven-v4 Sarah voice/settings as the two existing whispers, via OpenRouter, 2026-10-30.
 
-warning.mp3: post-sequence instruction: “Lähetä seuraava luokseni. Jos spoilaat, kiroan sinut kahden asunnon loukkuun ja tilaan Elisa Viihteen.” Generated with ElevenLabs eleven-v4, Sarah, Finnish, [sternly] direction, via OpenRouter, 2026-10-30.
+warning.mp3: “Lähetä seuraava luokseni. Mutta jos spoilaat, kiroan sinut kahden asunnon loukkuun, puudutan sukupuolielimesi ja tilaan vanhemmillesi Elisa Viihteen.” Generated with ElevenLabs eleven-v4, Sarah, Finnish, repeated quiet direction and restrained menacing delivery via OpenRouter, 2026-10-30. Playback rendered at 0.88 speed without pitch shift and normalized to -20 LUFS.
