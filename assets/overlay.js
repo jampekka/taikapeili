@@ -2,16 +2,16 @@
 // Only the debug box uses this inverse. Detection and run timing remain unchanged.
 export function ripplePoint(p,{aspect=1,ripples=[],sources=[],speechPower=0}={}){
  const smooth=(a,b,v)=>{const t=Math.max(0,Math.min(1,(v-a)/(b-a)));return t*t*(3-2*t)};
- const sideDistance=Math.min(p.x,1-p.x),fade=smooth(0,.015,sideDistance)*smooth(0,.015,Math.min(p.y,1-p.y))*(1-smooth(.12,.36,sideDistance));
+ const shortSide=Math.min(aspect,1),edgeDistance=Math.min(Math.min(p.x,1-p.x)*aspect,Math.min(p.y,1-p.y))/shortSide,fade=smooth(0,.015,edgeDistance)*(1-smooth(.17,.44,edgeDistance));
  let x=p.x,y=p.y;
  if(speechPower>.00001)for(const [originX,originY] of sources){
   const dx=(p.x-originX)*aspect,dy=p.y-originY,radius=Math.hypot(dx,dy);
-  const amount=-speechPower*Math.exp(-Math.pow(radius/(aspect*.16),2))*fade;
+  const amount=-speechPower*Math.exp(-Math.pow(radius/(shortSide*.16),2))*fade;
   x+=dx*amount/aspect;y+=dy*amount;
  }
  for(const [age,amplitude,originX,originY] of ripples){
   const dx=(p.x-originX)*aspect,dy=p.y-originY,radius=Math.hypot(dx,dy),front=radius-age*.48;
-  const offset=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288-radius/(aspect*.18)-age*3.5);
+  const offset=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288-radius/(shortSide*.25)-age*2.7);
   const t=Math.min(1,radius/.06),amount=offset*fade*t*t*(3-2*t)/Math.max(radius,.0001);
   x+=dx*amount/aspect;y+=dy*amount;
  }

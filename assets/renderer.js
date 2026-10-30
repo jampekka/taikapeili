@@ -1,18 +1,24 @@
 import {revealZoom,revealImpact} from './portrait.js';
 import {projectLivePoint,sampleLivePoint,ripplePoint} from './overlay.js';
 const vertex=`attribute vec2 position;varying vec2 uv;void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
-const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;uniform float aspect;uniform vec4 ripples[8];uniform vec2 sources[6];uniform float speechPower;
-vec2 ripplePoint(vec2 p){float sideDistance=min(p.x,1.-p.x);float fade=smoothstep(0.,.015,sideDistance)*smoothstep(0.,.015,min(p.y,1.-p.y))*(1.-smoothstep(.12,.36,sideDistance));vec2 result=p;
-if(speechPower>.00001){for(int i=0;i<6;i++){vec2 d=(p-sources[i])*vec2(aspect,1.);float radius=length(d);float amount=-speechPower*exp(-pow(radius/(aspect*.16),2.))*fade;result+=d*amount/vec2(aspect,1.);}}
-for(int i=0;i<8;i++){vec2 d=(p-ripples[i].zw)*vec2(aspect,1.);float radius=length(d);float age=ripples[i].x,amp=ripples[i].y;float front=radius-age*.48;float offset=amp*sin(front*39.269908)*exp(-front*front/.0288-radius/(aspect*.18)-age*3.5);float t=clamp(radius/.06,0.,1.);float amount=offset*fade*t*t*(3.-2.*t);result+=d/max(radius,.0001)*amount/vec2(aspect,1.);}return result;}
+const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;uniform float aspect;uniform vec4 ripples[8];uniform vec2 sources[12];uniform float speechPower;
+vec2 ripplePoint(vec2 p){float shortSide=min(aspect,1.);float edgeDistance=min(min(p.x,1.-p.x)*aspect,min(p.y,1.-p.y))/shortSide;float fade=smoothstep(0.,.015,edgeDistance)*(1.-smoothstep(.17,.44,edgeDistance));vec2 result=p;
+if(speechPower>.00001){for(int i=0;i<12;i++){vec2 d=(p-sources[i])*vec2(aspect,1.);float radius=length(d);float amount=-speechPower*exp(-pow(radius/(shortSide*.16),2.))*fade;result+=d*amount/vec2(aspect,1.);}}
+for(int i=0;i<8;i++){vec2 d=(p-ripples[i].zw)*vec2(aspect,1.);float radius=length(d);float age=ripples[i].x,amp=ripples[i].y;float front=radius-age*.48;float offset=amp*sin(front*39.269908)*exp(-front*front/.0288-radius/(shortSide*.25)-age*2.7);float t=clamp(radius/.06,0.,1.);float amount=offset*fade*t*t*(3.-2.*t);result+=d/max(radius,.0001)*amount/vec2(aspect,1.);}return result;}
 vec2 warp(vec2 p,vec2 voiced,float channel){vec2 q=(p+(voiced-p)*(1.+channel*.45)-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirror>.5)q.x=1.-q.x;vec2 d=q-vec2(.5+.08*sin(time*.31),.48+.07*cos(time*.27));float radius=length(d);vec2 edge=2.*p-1.;float falloff=smoothstep(0.,.65,max(0.,(1.-edge.x*edge.x)*(1.-edge.y*edge.y)));float amount=power*falloff;q+=d*sin(radius*13.-time*1.9+channel*.8)*amount*.65;q.x+=sin(q.y*9.+time*.8+channel*.26)*amount*.45+sin(q.y*24.-time*1.3+channel)*amount*.12;q.y+=sin(q.x*11.-time*.6+channel*.33)*amount*.4;return q;}
 vec4 sampleAt(vec2 p){if(scare>.5&&(p.x<0.||p.y<0.||p.x>1.||p.y>1.))return vec4(0.);return texture2D(image,clamp(p,vec2(0.),vec2(1.)));}
 void main(){vec2 voiced=ripplePoint(uv);vec4 r=sampleAt(warp(uv,voiced,-1.)),g=sampleAt(warp(uv,voiced,0.)),b=sampleAt(warp(uv,voiced,1.));vec3 rgb=vec3(r.r*r.a,g.g*g.a,b.b*b.a);gl_FragColor=vec4(rgb,1.);}`;
-// Alternate sides and heights so successive speech waves never share a central source.
-const rippleSources=[[.04,.22],[.96,.74],[.04,.75],[.96,.24],[.04,.48],[.96,.5]];
-export function rippleOrigin(index,time){
- const i=index%rippleSources.length,base=rippleSources[i],angle=time*(.11+i*.013)+i*2.4;
- return [base[0]+.025*Math.cos(angle),base[1]+.055*Math.sin(angle)];
+// Equal physical perimeter spacing, with small fixed jitter and slow local wandering.
+export const RIPPLE_SOURCE_COUNT=12;
+export function rippleOrigin(index,time,aspect=1){
+ const i=index%RIPPLE_SOURCE_COUNT,shortSide=Math.min(aspect,1),margin=.04*shortSide,width=aspect-2*margin,height=1-2*margin,perimeter=2*(width+height);
+ let distance=(i+.5+.12*Math.sin(i*2.4))/RIPPLE_SOURCE_COUNT*perimeter,x,y;
+ if(distance<width){x=margin+distance;y=margin}
+ else if((distance-=width)<height){x=aspect-margin;y=margin+distance}
+ else if((distance-=height)<width){x=aspect-margin-distance;y=1-margin}
+ else{distance-=width;x=margin;y=1-margin-distance}
+ const angle=time*(.11+i*.007)+i*2.4;
+ return [(x+.025*shortSide*Math.cos(angle))/aspect,y+.025*shortSide*Math.sin(angle)];
 }
 export class MirrorRenderer {
  constructor(canvas,{onTick=()=>{},voiceLevel=()=>0,reduced=false,revealCanvas=null}={}){this.voiceLevel=voiceLevel;this.speechPulse=0;this.lastVoice=0;this.ripples=[];this.rippleIndex=0;this.lastRippleAt=-Infinity;this.speechAt=null;this.revealCanvas=revealCanvas;this.revealContext=revealCanvas?.getContext('2d',{alpha:false});if(revealCanvas)revealCanvas.hidden=true;this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.lastDraw=0;this.strength=.7;
@@ -49,15 +55,17 @@ export class MirrorRenderer {
   const dt=this.speechAt==null?33:Math.max(0,Math.min(100,now-this.speechAt));this.speechAt=now;
   const previous=this.speechPulse||0,rise=Math.max(0,voice-(this.lastVoice||0));this.lastVoice=voice;
   this.speechPulse=this.reduced?0:previous+(voice-previous)*(1-Math.exp(-dt/(voice>previous?12:65)));
-  this.ripples=this.reduced?[]:(this.ripples||[]).filter(r=>now-r.at<1250);
+  this.ripples=this.reduced?[]:(this.ripples||[]).filter(r=>now-r.at<1600);
   if(voice>.045&&this.strength>0&&(rise>.025||previous<.045)&&now-(this.lastRippleAt??-Infinity)>=65){
    const attack=Math.min(1,rise*3),amplitude=.12*this.strength*(voice*.35+attack*.65);
-   // Each attack strikes both sides, with the pair advancing through the six anchors.
-   for(let i=0;i<2;i++){const origin=rippleOrigin(this.rippleIndex||0,now/1000);this.rippleIndex=(this.rippleIndex||0)+1;this.ripples.push({at:now,amplitude,origin})}
+   // Strike opposing perimeter points, then scatter the next pair around the frame.
+   const sourceIndex=this.rippleIndex||0;
+   for(let i=0;i<2;i++){const origin=rippleOrigin(sourceIndex+i*RIPPLE_SOURCE_COUNT/2,now/1000,ratio);this.ripples.push({at:now,amplitude,origin})}
+   this.rippleIndex=(sourceIndex+5)%RIPPLE_SOURCE_COUNT;
    this.ripples=this.ripples.slice(-8);this.lastRippleAt=now;
   }
   const ripples=this.ripples.map(r=>[(now-r.at)/1000,r.amplitude,r.origin[0],this.gl?1-r.origin[1]:r.origin[1]]);
-  const sources=Array.from({length:6},(_,i)=>{const [x,y]=rippleOrigin(i,now/1000);return [x,this.gl?1-y:y]});
+  const sources=Array.from({length:RIPPLE_SOURCE_COUNT},(_,i)=>{const [x,y]=rippleOrigin(i,now/1000,ratio);return [x,this.gl?1-y:y]});
   const speechPower=this.reduced?0:.65*this.strength*this.speechPulse;
   const zoom=1,power=(this.reduced?.006:.025)*this.strength;
   const imageRatio=iw/ih,cover=imageRatio>ratio?[ratio/imageRatio,1]:[1,imageRatio/ratio];

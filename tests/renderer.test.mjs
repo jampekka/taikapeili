@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {MirrorRenderer,rippleOrigin} from '../assets/renderer.js';
+import {MirrorRenderer,rippleOrigin,RIPPLE_SOURCE_COUNT} from '../assets/renderer.js';
 import {revealImpact} from '../assets/portrait.js';
 const w=64,h=80;
 let output;
@@ -36,8 +36,9 @@ assert.equal(live.ripples.length,0,'Silent mirror settles to base warp after the
 for(let i=0;i<200;i++){speech=i%4<2?.3:1;MirrorRenderer.prototype.draw.call(live,7000+i*33)}
 assert.ok(live.ripples.length<=8,'Long speech has bounded packet storage');
 assert.ok(new Set(live.ripples.map(r=>r.origin.join(','))).size>=4,'Long speech uses several side sources');
-assert.ok(live.ripples.every(r=>r.origin[0]<=.065||r.origin[0]>=.935),'No ring originates in the centre');
-assert.ok(live.ripples.slice(1).every((r,i)=>(r.origin[0]<.5)!==(live.ripples[i].origin[0]<.5)),'Successive packets alternate sides');
+assert.ok(live.ripples.every(r=>Math.min(r.origin[0],1-r.origin[0],r.origin[1]/.8,(1-r.origin[1])/.8)<=.0650001),'All ring sources stay near one of the four edges');
+for(let i=0;i<live.ripples.length;i+=2){const a=live.ripples[i].origin,b=live.ripples[i+1].origin;assert.ok((a[0]-.5)*(b[0]-.5)+(a[1]-.5)*(b[1]-.5)<0,'Each vocal attack strikes an opposing pair')}
+assert.equal(live.liveView.sources.length,RIPPLE_SOURCE_COUNT);
 speech=1;for(let i=0;i<80;i++)MirrorRenderer.prototype.draw.call(live,14000+i*33);
 assert.equal(live.ripples.length,0,'A sustained level does not generate clock-driven waves');assert.ok(live.liveView.speechPower>.4,'Sustained speech still drives the sources directly');
 speech=.1;MirrorRenderer.prototype.draw.call(live,17000);assert.ok(live.liveView.speechPower<.3,'Local response follows a volume drop promptly');
@@ -50,16 +51,24 @@ try{
 }finally{globalThis.requestAnimationFrame=realRAF}
 console.log('PASS: phase-independent base RGB warp and additive travelling voice rings and continuous rendering behind reveal');
 
-for(let i=0;i<6;i++){
- const anchor=i%2===0?.04:.96;
- let previous=rippleOrigin(i,0);let moved=false;
- for(let t=0;t<600;t+=.1){
-  const next=rippleOrigin(i,t);
-  assert.ok(Math.abs(next[0]-anchor)<=.02500001,'Emitter stays within its side corridor');
-  assert.ok(Math.hypot(next[0]-previous[0],next[1]-previous[1])<.001,'Source motion is slow and continuous');
-  if(Math.hypot(next[0]-rippleOrigin(i,0)[0],next[1]-rippleOrigin(i,0)[1])>.01)moved=true;
-  previous=next;
+for(const aspect of [.6,1,1.5]){
+ const shortSide=Math.min(aspect,1),origins=Array.from({length:RIPPLE_SOURCE_COUNT},(_,i)=>rippleOrigin(i,0,aspect)),edgeCounts=[0,0,0,0],spacing=2*(aspect+1)/RIPPLE_SOURCE_COUNT;
+ for(let i=0;i<RIPPLE_SOURCE_COUNT;i++){
+  let previous=origins[i],moved=false;
+  const distances=[previous[0]*aspect,previous[1],(1-previous[0])*aspect,1-previous[1]];
+  edgeCounts[distances.indexOf(Math.min(...distances))]++;
+  const next=origins[(i+1)%RIPPLE_SOURCE_COUNT],gap=Math.hypot((next[0]-previous[0])*aspect,next[1]-previous[1]);
+  assert.ok(gap>spacing*.35&&gap<spacing*1.65,'Sources are approximately uniformly spaced around the physical perimeter');
+  for(let t=0;t<120;t+=.25){
+   const next=rippleOrigin(i,t,aspect),edgeDistance=Math.min(next[0]*aspect,1-next[1],(1-next[0])*aspect,next[1]);
+   assert.ok(edgeDistance>=.014999*shortSide&&edgeDistance<=.065001*shortSide,'Emitter stays near an edge in portrait and landscape');
+   assert.ok(Math.hypot((next[0]-previous[0])*aspect,next[1]-previous[1])<.0015*shortSide,'Wandering is slow and continuous');
+   const travel=Math.hypot((next[0]-origins[i][0])*aspect,next[1]-origins[i][1]);
+   assert.ok(travel<=.050001*shortSide,'Each emitter remains in a small neighbourhood');if(travel>.01*shortSide)moved=true;
+   previous=next;
+  }
+  assert.ok(moved,'Every source wanders');
  }
- assert.ok(moved,'Each source wanders');
+ assert.ok(edgeCounts.every(n=>n>=2),'All four edges have multiple sources');
 }
-console.log('PASS: slow bounded emitter wandering stays away from centre');
+console.log('PASS: uniform four-edge distribution and bounded wandering across aspect ratios');
