@@ -1,6 +1,6 @@
 # The Other Side — Halloween mirror
 
-Dummy mode is the default on every page load. It makes no image API calls. The UI is a live mirrored camera, vanity lights and three Finnish text/whisper cues. Debug controls are at `?debug=1`.
+Dummy mode is the default on every page load. It makes no image API calls. The UI is a live mirrored camera, vanity lights and three Finnish text/whisper cues. Debug controls are at `?debug=1`. Ending selection, volume, morph strength, distance threshold and text/overlay toggles save automatically in this browser and apply on normal page loads. Other browsers/devices keep their own settings. Paid image provider selection is never saved.
 
 ## One run
 
@@ -12,13 +12,13 @@ A worker processes the full, uncropped camera image at up to 10 Hz, with at most
 
 When the whispers finish, dummy mode captures the latest camera frame and draws a colour tint, dark eye sockets and pale eyes. No segmentation, masks, pixel loops, decorative makeup, or additional inference occur in the reveal path. No portrait rotation or intermediate crop can cut away part of the captured image. The current eye midpoint anchors the translation/scale. Image preparation and frame age at reveal are reported separately.
 
-The separate 2D reveal canvas retains the complete snapshot, with the 50 ms zoom overshoot, fading shake and brightness surges, and ends at 650 ms. Reduced motion is static. Rectangular perimeter lamps are laid out responsively with a common target pitch, equal spacing on each edge, and unique corner bulbs; they go off during the reveal. The laugh starts 400 ms after the reveal ends. Then, if a face is present, the quiet ending instruction plays once without visible text. One second of absence stops it.
+The separate 2D reveal canvas retains the complete snapshot, with the 50 ms zoom overshoot, fading shake and brightness surges, and ends at 650 ms. Reduced motion is static. Rectangular perimeter lamps are laid out responsively with a common target pitch, equal spacing on each edge, and unique corner bulbs; they go off during the reveal. The laugh starts 400 ms after the reveal ends. Then the selected quiet ending instruction plays once without visible text, even if the viewer has left. Debug offers “Lähetä seuraava luokseni” and “Älä kerro minusta kenellekään”, with a playback preview. Once the reveal starts, face loss does not interrupt the reveal, laugh or ending. Page shutdown or audio interruption still stops playback.
 
 The live mirror retains the radial RGB warp. Debug boxes and eye crosshairs follow that same coordinate transform. Optional remote image generation retains its completion barrier and dummy fallback.
 
 ## Sound
 
-One bundled 720 ms scream burst replaces all three former scare effects. It is edited from “Female Scream Horror” by NeoPhyTe, listed as Public Domain on SoundBible. The leading silence was removed, loudness normalized and the tail faded. Source and edits are documented in `assets/audio/SOURCES.txt`. Finnish whispers remain bundled recordings. The page opens at an audio-start gate. All audio clips are fetched and decoded before the mirror starts. If Web Audio cannot autoplay, the user must click “Avaa peili”. No camera, detection or sequence starts until the context is running and every clip is decoded. Audio needs one page gesture under browser autoplay rules; unlocking retries the current cue if it is still active. Interruption exposes the sound button again; failed clips can be retried. If the audio context becomes unavailable, the mirror pauses and returns to the audio-start gate.
+One bundled 720 ms scream burst replaces all three former scare effects. It is edited from “Female Scream Horror” by NeoPhyTe, listed as Public Domain on SoundBible. The leading silence was removed, loudness normalized and the tail faded. Source and edits are documented in `assets/audio/SOURCES.txt`. Finnish whispers remain bundled recordings. The page opens at an audio-start gate. All audio clips are fetched and decoded before the mirror starts. If Web Audio cannot autoplay, the user must click “Avaa peili”. That click requests document fullscreen alongside audio unlocking, before any await. Unsupported or declined fullscreen does not prevent startup. No camera, detection or sequence starts until the context is running and every clip is decoded. Audio needs one page gesture under browser autoplay rules; unlocking retries the current cue if it is still active. Interruption exposes the sound button again; failed clips can be retried. If the audio context becomes unavailable, the mirror pauses and returns to the audio-start gate.
 
 ## Remote image backup path
 

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {enterFullscreen} from '../assets/fullscreen.js';
+let called=false,finish;
+const pending=enterFullscreen({documentElement:{requestFullscreen(){called=true;return new Promise(resolve=>finish=resolve)}}});
+assert.equal(called,true,'Request must happen synchronously in the click gesture');finish();assert.equal(await pending,true);
+assert.equal(await enterFullscreen({fullscreenElement:{},documentElement:{requestFullscreen(){assert.fail('Already fullscreen')}}}),true);
+assert.equal(await enterFullscreen({documentElement:{}}),false);
+assert.equal(await enterFullscreen({documentElement:{requestFullscreen(){return Promise.reject(Error('denied'))}}}),false);
+assert.equal(await enterFullscreen({documentElement:{webkitRequestFullscreen(){called=true}}}),true);
+console.log('PASS: synchronous fullscreen request, existing fullscreen, unsupported/declined fallback and WebKit method');

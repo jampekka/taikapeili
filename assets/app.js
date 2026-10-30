@@ -2,6 +2,8 @@ import {transformSnapshot} from './effects.js';
 import {FaceTracker,faceToMirror} from './tracker.js';
 import {MirrorRenderer} from './renderer.js';
 import {MirrorRun,delay} from './run.js';
+import {loadSettings,saveSettings,ENDINGS} from './settings.js';
+import {enterFullscreen} from './fullscreen.js';
 import {layoutLights} from './lights.js';
 import {HorrorAudio} from './audio.js';
 import {DEFAULT_MODEL,requestServerImage,safeError} from './provider.js';
@@ -10,13 +12,14 @@ const params=new URLSearchParams(location.search),debug=params.has('debug'),fixt
 const revealMs=650,lookMs=4000,startDelayMs=2000,laughDelayMs=400;
 let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null;
 let source=null,stream=null,detector=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null,configured=false;
-let config={provider:'local',model:DEFAULT_MODEL,morph:.7,volume:.65,texts:false,closeWidth:.45};
+let config={provider:'local',model:DEFAULT_MODEL,...loadSettings()};
 const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,frameAgeMs:null,error:'none',sound:'locked',eyes:'not measured'};
 const lightFrame=$('lights');new ResizeObserver(()=>layoutLights(lightFrame)).observe(lightFrame);
 const events=[],audio=new HorrorAudio();audio.setVolume(config.volume);
 const frame=document.createElement('canvas'),scan=document.createElement('canvas');
 const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alpha:false});
 const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),onTick:()=>drawTracking(trackedFaces),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
+renderer.strength=config.morph;
 const run=new MirrorRun(state=>{
  mirror.dataset.phase=state==='running'?'processing':state==='reveal'?'reveal':'live';
  mirror.dataset.requesting=String(state==='running');
@@ -107,9 +110,9 @@ async function reveal(result,signal){
  $('ritualText').hidden=true;renderer.show(result.image,revealMs,result.focus,result.target);stats.sound=muted?'muted':audio.play();stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log('Reveal');await delay(revealMs,signal);renderer.clearReveal();
 }
 async function instruction(signal){
- stats.sound=muted?'muted':audio.warning();log('Post-sequence instruction · '+stats.sound);
- // Speak once; sustained face loss stops the instruction and ends this stage.
- await new Promise(resolve=>{if(signal.aborted)resolve();else signal.addEventListener('abort',resolve,{once:true})});
+ stats.sound=muted?'muted':audio.warning(config.ending);log('Post-sequence instruction · '+config.ending+' · '+stats.sound);
+ // Once the scare starts, the laugh and ending finish even if the viewer leaves.
+ await delay(audio.duration(config.ending==='secret'?'warningPrivate':'warning',12)*1000+100,signal);
 }
 async function afterReveal(signal){
  await delay(laughDelayMs,signal);stats.sound=muted?'muted':audio.laugh();log('Nelson laugh · 400ms after reveal');
@@ -125,7 +128,7 @@ function trigger(face){
  },generateAfterSequence:local,sequence,beforeReveal,reveal,afterReveal,instruction});
 }
 function drawTracking(faces){
- const c=$('tracking');c.hidden=!debug||!$('boxes').checked||run.state==='reveal';if(c.hidden)return;
+ const c=$('tracking');c.hidden=!debug||!config.boxes||run.state==='reveal';if(c.hidden)return;
  const r=glass.getBoundingClientRect(),w=Math.round(r.width),h=Math.round(r.height);if(c.width!==w||c.height!==h){c.width=w;c.height=h}
  const t=c.getContext('2d');t.clearRect(0,0,w,h);t.strokeStyle='#9dffb0';t.lineWidth=2;
  for(const f of faces){const left=f.center.x-f.width/2,top=f.center.y-f.height/2;const corners=[{x:left,y:top},{x:left+f.width,y:top},{x:left+f.width,y:top+f.height},{x:left,y:top+f.height}];t.beginPath();for(let side=0;side<4;side++)for(let i=0;i<8;i++){const a=corners[side],b=corners[(side+1)%4],p=renderer.projectPoint({x:a.x+(b.x-a.x)*i/8,y:a.y+(b.y-a.y)*i/8});if(!side&&!i)t.moveTo(p.x*w,p.y*h);else t.lineTo(p.x*w,p.y*h)}t.closePath();t.stroke();
@@ -164,23 +167,35 @@ function updateAudioPrompt(){
  else{if(source||starting)stop();$('audioGateMessage').textContent=audio.error?'Äänten lataus epäonnistui. Yritä uudelleen.':'Napauta avataksesi peilin ja käynnistääksesi äänet.'}
 }
 audio.onStateChange=updateAudioPrompt;
-async function unlock(){
+async function unlock(fullscreen=false){
  $('startMirror').disabled=true;
- try{if(!await audio.unlock())throw new Error('Audio is still locked');updateAudioPrompt()}
+ try{
+  const unlocked=audio.unlock();
+  // Both browser APIs are called within the original user gesture.
+  if(fullscreen)void enterFullscreen().then(entered=>{if(debug)log(entered?'Fullscreen entered':'Fullscreen unavailable or declined')});
+  if(!await unlocked)throw new Error('Audio is still locked');updateAudioPrompt();
+ }
  catch(error){$('audioGateMessage').textContent=safeError(error)}
  finally{$('startMirror').disabled=false}
 }
-$('startMirror').addEventListener('click',unlock);
+$('startMirror').addEventListener('click',()=>unlock(true));
 $('enable').addEventListener('click',()=>{stop();updateAudioPrompt()});$('retry').addEventListener('click',()=>{$('runError').hidden=true;run.reset()});
+function persistSettings(){
+ const saved=saveSettings(config);$('settingsStatus').textContent=saved?'Saved automatically in this browser.':'Browser storage unavailable; changes last until reload.';
+}
 if(debug){
+ for(const [id,key] of [['volume','volume'],['morph','morph'],['closeWidth','closeWidth']])$(id).value=Math.round(config[key]*100);
+ $('showTexts').checked=config.texts;$('boxes').checked=config.boxes;$('ending').value=config.ending;$('endingCopy').textContent=ENDINGS[config.ending];
+ $('ending').addEventListener('change',e=>{config.ending=e.target.value;$('endingCopy').textContent=ENDINGS[config.ending];persistSettings()});
+ $('testEnding').addEventListener('click',async()=>{await unlock();stats.sound=audio.warning(config.ending);updateDebug()});
  $('debug').hidden=audio.status!=='running';$('apiModel').value=DEFAULT_MODEL;
  $('providerForm').addEventListener('submit',e=>{e.preventDefault();if(run.state!=='idle'){log('Finish the current run before changing provider');return}if(!configured){log('Server provider unavailable');return}config.provider='server';config.model=$('apiModel').value||DEFAULT_MODEL;$('providerStatus').textContent=`Remote · ${config.model}`;updateDebug()});
  $('useLocal').addEventListener('click',()=>{if(run.state!=='idle')return;config.provider='local';$('providerStatus').textContent='Dummy · no API calls';updateDebug()});
- $('closeWidth').addEventListener('input',e=>{config.closeWidth=Number(e.target.value)/100;updateDebug()});
- $('morph').addEventListener('input',e=>{config.morph=Number(e.target.value)/100;renderer.strength=config.morph});
- $('volume').addEventListener('input',e=>audio.setVolume(Number(e.target.value)/100));
- $('boxes').addEventListener('change',()=>drawTracking(trackedFaces));
- $('showTexts').addEventListener('change',e=>{config.texts=e.target.checked;$('ritualText').hidden=!config.texts||!activeCue});
+ $('closeWidth').addEventListener('input',e=>{config.closeWidth=Number(e.target.value)/100;persistSettings();updateDebug()});
+ $('morph').addEventListener('input',e=>{config.morph=Number(e.target.value)/100;renderer.strength=config.morph;persistSettings()});
+ $('volume').addEventListener('input',e=>{config.volume=Number(e.target.value)/100;audio.setVolume(config.volume);persistSettings()});
+ $('boxes').addEventListener('change',e=>{config.boxes=e.target.checked;persistSettings();drawTracking(trackedFaces)});
+ $('showTexts').addEventListener('change',e=>{config.texts=e.target.checked;persistSettings();$('ritualText').hidden=!config.texts||!activeCue});
  $('testSound').addEventListener('click',async()=>{await unlock();stats.sound=audio.play();updateDebug()});
  $('testScare').addEventListener('click',()=>{if(run.state==='idle'&&lastFace&&capture())trigger(lastFace)});
  $('providerStatus').textContent='Dummy · no API calls';setInterval(updateDebug,250);

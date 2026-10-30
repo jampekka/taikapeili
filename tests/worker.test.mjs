@@ -7,6 +7,7 @@ const config=await worker.fetch(make('/api/mirror/config'),env);const configText
 const script=await worker.fetch(make('/app.js'),env);assert.match(script.headers.get('content-type'),/javascript/);assert.equal((await script.text()).includes(env.OPENROUTER_API_KEY),false);
 assert.equal((await worker.fetch(make('/'),env)).status,200);
 const warningAudio=await worker.fetch(make('/audio/warning.mp3'),env);assert.equal(warningAudio.status,200);assert.ok((await warningAudio.arrayBuffer()).byteLength>1000);
+const privateAudio=await worker.fetch(make('/audio/warning-private.mp3'),env);assert.equal(privateAudio.status,200);assert.ok((await privateAudio.arrayBuffer()).byteLength>1000);
 const secretAudio=await worker.fetch(make('/audio/secret.mp3'),env);assert.equal(secretAudio.status,200);assert.match(secretAudio.headers.get('content-type'),/audio\/mpeg/);assert.ok((await secretAudio.arrayBuffer()).byteLength>1000,'The new whisper must be bundled, not just referenced');
 assert.equal((await worker.fetch(make('/models/face_landmarker.task'),env)).status,200);
 const wasm=await worker.fetch(make('/vendor/mediapipe/wasm/vision_wasm_internal.wasm'),env);assert.equal(wasm.headers.get('content-type'),'application/wasm');assert.deepEqual([...new Uint8Array(await wasm.arrayBuffer()).slice(0,4)],[0,97,115,109]);

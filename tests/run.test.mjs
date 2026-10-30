@@ -50,16 +50,17 @@ console.log('PASS: dummy captures only after cues, reads newest frame, and skips
 }
 console.log('PASS: 1s cancellation, 3s absence rearm, brief-loss recovery, no repeated run, post-reveal completion ordering');
 {
- const laugh=deferred();let instructions=0,signal;
- const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:s=>{instructions++;signal=s;return new Promise(resolve=>s.addEventListener('abort',resolve,{once:true}))}});
+ const laugh=deferred(),speech=deferred();let instructions=0,signal;
+ const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:s=>{instructions++;signal=s;return speech.promise}});
  await flush();assert.equal(r.state,'after');assert.equal(instructions,0,'Instruction waits until laugh finishes');laugh.resolve();await flush();assert.equal(r.state,'instruction');assert.equal(instructions,1);
- r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'instruction','Brief misses do not stop the warning');r.observeFace(false,1100);await flush();assert.equal(r.state,'finished');assert.equal(signal.aborted,true);assert.equal(instructions,1);r.observeFace(true,1200);assert.equal(r.state,'finished','Returning face does not replay warning');
- r.observeFace(false,1300);r.observeFace(false,4300);assert.equal(r.state,'idle');
+ r.observeFace(false,100);r.observeFace(false,1100);assert.equal(r.state,'instruction','Face loss cannot stop post-scare speech');assert.equal(signal.aborted,false);
+ r.observeFace(false,3100);assert.equal(r.armed,true);assert.equal(r.state,'instruction','Rearming cannot interrupt the current speech');r.observeFace(true,3200);assert.equal(r.start({}),false,'Another viewer must wait until the ending finishes');
+ speech.resolve();await flush();assert.equal(r.state,'idle');assert.equal(instructions,1);
 }
 {
- const laugh=deferred();const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:()=>assert.fail('No warning to an absent viewer')});await flush();r.observeFace(false,100);laugh.resolve();await flush();assert.equal(r.state,'finished');
+ const laugh=deferred();let instructions=0;const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:()=>instructions++});await flush();r.observeFace(false,100);r.observeFace(false,1200);assert.equal(r.state,'after');laugh.resolve();await flush();assert.equal(instructions,1,'Ending still plays for a viewer who left after the scare');assert.equal(r.state,'finished');
 }
-console.log('PASS: stern instruction after laugh, one playback, presence-controlled hold, absence cancellation, no replay, skip if viewer already left');
+console.log('PASS: post-scare laugh/speech finish despite absence, play once, and block a new run until completion');
 {
  const close=deferred(),cues=deferred();let sequences=0,images=0,reveals=0;
  const r=new MirrorRun();r.observeFace(true,0);r.start({approach:()=>close.promise,sequence:()=>{sequences++;return cues.promise},generate:()=>{images++;return 1},reveal:()=>reveals++});

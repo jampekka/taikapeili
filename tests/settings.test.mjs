@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {loadSettings,saveSettings} from '../assets/settings.js';
+let value;const storage={getItem(){return value},setItem(key,data){value=data}};
+const defaults=loadSettings(storage);assert.equal(defaults.ending,'invite');assert.equal(defaults.closeWidth,.45);
+assert.equal(saveSettings({...defaults,ending:'secret',volume:.4,morph:.3,texts:true,boxes:false,closeWidth:.6,provider:'server',model:'paid'},storage),true);
+assert.deepEqual(loadSettings(storage),{morph:.3,volume:.4,texts:true,boxes:false,closeWidth:.6,ending:'secret'});
+assert.equal(JSON.parse(value).provider,undefined,'Paid provider selection must not be restored on a normal page load');
+value='{broken';assert.deepEqual(loadSettings(storage),defaults);
+value=JSON.stringify({volume:4,morph:-1,closeWidth:.01,ending:'unknown',texts:'false'});assert.deepEqual(loadSettings(storage),{...defaults,volume:1,morph:0,closeWidth:.2});
+const blocked={getItem(){throw Error('blocked')},setItem(){throw Error('blocked')}};assert.deepEqual(loadSettings(blocked),defaults);assert.equal(saveSettings(defaults,blocked),false);
+console.log('PASS: saved settings round trip, bounded values, malformed/blocked storage fallback, no paid-provider persistence');

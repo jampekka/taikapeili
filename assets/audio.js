@@ -1,4 +1,4 @@
-const FILES={scare:'scream.mp3',come:'come-closer.mp3',secret:'secret.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3',warning:'warning.mp3'};
+const FILES={scare:'scream.mp3',come:'come-closer.mp3',secret:'secret.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3',warning:'warning.mp3',warningPrivate:'warning-private.mp3'};
 export class HorrorAudio {
  constructor(){this.context=null;this.output=null;this.voices=[];this.volume=.65;this.buffers=new Map();this.error=null;this.onStateChange=()=>{};this.prepare().catch(()=>{})}
  get ready(){return Object.keys(FILES).every(id=>this.buffers.has(id))}
@@ -38,7 +38,7 @@ export class HorrorAudio {
   this.stop(group);const source=this.context.createBufferSource(),level=this.context.createGain();source.buffer=buffer;level.gain.value=gain;source.connect(level);level.connect(this.output);source.start();
   source.onended=()=>{source.disconnect();level.disconnect();this.voices=this.voices.filter(v=>v.node!==source)};this.voices.push({node:source,group});return id;
  }
- warning(){return this.playSample('warning','instruction',.9)}
+ warning(ending='invite'){return this.playSample(ending==='secret'?'warningPrivate':'warning','instruction',.9)}
  laugh(){return this.playSample('laugh','laugh',.85)}
  say(id){return this.playSample(id,'whisper',.85)}
  play(){this.stop('whisper');return this.playSample('scare','scare',1)}

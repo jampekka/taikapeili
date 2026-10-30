@@ -7,7 +7,7 @@ export class MirrorRun {
   if(present){this.absentSince=null;return}
   if(this.absentSince===null)this.absentSince=now;
   const absentFor=now-this.absentSince;
-  if((this.state==='approach'||this.state==='running'||this.state==='instruction')&&absentFor>=1000)this.cancel();
+  if((this.state==='approach'||this.state==='running')&&absentFor>=1000)this.cancel();
   if(absentFor>=3000){this.armed=true;if(this.state==='finished')this.setState('idle')}
  }
  cancel(){const run=this.active;this.active=null;run?.controller.abort();this.setState('finished')}
@@ -32,7 +32,7 @@ export class MirrorRun {
    if(this.active!==run||signal.aborted)return;
    this.setState('after');await afterReveal(signal);
    if(this.active!==run||signal.aborted)return;
-   if(instruction&&this.facePresent){this.setState('instruction');await instruction(signal)}
+   if(instruction){this.setState('instruction');await instruction(signal)}
    if(this.active===run){this.active=null;this.setState(this.armed?'idle':'finished')}
   }).catch(error=>{
    if(this.active!==run)return;
