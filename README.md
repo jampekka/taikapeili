@@ -1,23 +1,25 @@
-# The Other Side
+# The Other Side — automatic mirror
 
-Buildless Halloween mirror prototype, designed for iPad Safari and desktop browsers. Serve `dist` over HTTPS for camera access. No installation or build step.
+A buildless, camera-only Halloween mirror. Serve `dist` over HTTPS. The visible interface is only the live mirrored camera, surrounded by warm-white screen lights. No menus, title, effect picker, countdown, capture button, or result controls. Camera permission is requested at startup; a retry/enable button appears only when the browser prevents startup. Once permission is allowed, no visitor interaction is required.
 
-## Interaction
+## Automatic operation
 
-Open the camera (front-facing by default), try the sample portrait, or upload a photo. Select Undead, Timeworn, or Apparition. The mirror captures a still after a three-second countdown, asynchronously transforms it, fades to the result, then optionally returns to the live camera. Settings control automatic reveals, the live and reveal durations, intensity, the face guide, and gentle transitions. The original can be toggled and the transformed PNG shared/downloaded. Fullscreen falls back to a browser-based mirror mode on iPad. Escape exits it; Space triggers a reveal or returns to the mirror.
+1. Tiny Face Detector and the tiny 68-point landmark model run locally on sampled, cropped camera frames, using face-api.js 0.22.2 on its CPU backend. All scripts and weights are bundled with the Site. No WebGL, CDN, or native FaceDetector API is required.
+2. After a face is present and reasonably steady for one second, the matching camera frame is captured. The live view continues during asynchronous processing.
+3. The modified still fades in automatically for 1.7 seconds, then the live mirror returns. It repeats after about 6.5 seconds while a visitor remains.
+4. Face loss or a large position/size change cancels pending work and hides a stale reveal. Eye landmarks position, scale and rotate the effect automatically.
 
-Photos and camera frames stay in browser memory. Camera tracks are stopped when switching to the demo/photo, resetting, or leaving. There is no server, external image API, saved photo storage, or embedded API key. Fonts use Google Fonts with local fallbacks.
+The default transformation is a local dummy zombie effect. This is actual face detection and eye alignment, but not AI image editing. `transformSnapshot` in `dist/effects.js` is the replaceable asynchronous image-provider boundary; it receives a captured canvas, detected face geometry, effect and intensity, and returns a drawable canvas. A future provider should call a server endpoint with provider credentials kept server-side. `?effect=aged` and `?effect=ghost` are development options, with no added controls.
 
-## Runtime image provider
+The browser releases camera tracks when hidden or on departure, and resumes when visible. It requests a screen wake lock where supported. No frames, landmarks, or images leave the device or persist. Bright perimeter bulbs and frame contribute screen light; physical brightness still depends on the device's brightness setting.
 
-This version explicitly uses a dummy, canvas-based provider. Greenish color grading, under-eye shading and branching veins simulate undead; wrinkles and age spots simulate ageing; cold color grading, glowing eyes and ghosting simulate an apparition. Face placement is approximate: follow the guide or tap between the eyes to reposition the effects. No face detection or model inference is performed.
+## Validation
 
-Replace `generateMirrorSnapshot` in `dist/app.js` with an asynchronous server image-edit request. Input: `{image, effect, intensity, cx, ey}`. The captured `image` is a 900×1200 canvas. Return a canvas or drawable image; return no result after cancellation. The calling reveal flow already rejects stale completions by token. A production API should send a JPEG to a server endpoint, use an environment secret for OpenRouter/provider credentials, return an edited image, enforce a request timeout, and retain the same error/retry behavior. Never embed shared API keys in frontend source. Chat-time image generation is not a callable runtime capability for this static Site.
+- `node --check dist/app.js`, `node --check dist/effects.js`, `node --check dist/cycle.js`.
+- `node tests/cycle.test.mjs` verifies that empty scenes do not trigger, steady faces automatically trigger, only one render runs at a time, reveals return to live, remaining visitors repeat, and disappearance/movement/reset invalidate stale results.
+- Browser fixtures: `?test=portrait` uses the sample photograph through the same crop, detection, landmark, controller and transformation pipeline; `?test=empty` uses an empty image. These require no clicks or camera hardware. Runtime observations are exposed as `data-phase`, `data-faces`, `data-detections` and `data-reveals` on `#mirror` without visible debug UI.
+- Physical iPad camera permission, sustained performance, illumination, and screen wake-lock behavior still require a device check.
 
-## Sample asset
+## Asset provenance
 
-`dist/portrait.jpg` is an AI-generated sample input created with the built-in image-generation tool, then resized and converted to JPEG. Prompt: “Use case: photorealistic-natural. Asset type: sample input portrait for a Halloween mirror webapp. Generate a single natural editorial photo, vertical 3:4 composition, adult person around 35 with short wavy brown hair, androgynous appearance, a black high-neck sweater, facing straight towards the camera, head level, neutral expression and open eyes, centered perfectly. Face occupies center, top of head at 18% of image, eyes on 40% horizontal line, chin at 69%. Shoulders at bottom. Dark muted charcoal studio backdrop, soft warm cinematic light from the left and faint cool fill, beautifully textured real skin. Ordinary untransformed living person, no Halloween makeup or props. No text, no border, no watermark.”
-
-## Verification
-
-`node --check dist/app.js`. Browser QA covers demo entry, automatic reveal, original comparison, effect selection, settings and fullscreen mode. Physical iPad camera capture, Safari sharing, and device-specific permissions require testing on the device.
+`dist/portrait.jpg` is the previously generated sample portrait, used only by the explicit browser test fixture; it never appears in normal camera mode. It was generated with the built-in image-generation tool as a neutral, centered adult portrait against a dark charcoal background. Third-party license: `dist/vendor/LICENSE` and `NOTICE.txt`.
