@@ -26,3 +26,12 @@ console.log('PASS: concurrent start; early/late image barrier; one capture/revea
  assert.equal(revealed.capturedEyeY,.3);assert.equal(revealed.target,.6,'Reveal positioning reads the latest eyes after both branches finish');
 }
 console.log('PASS: reveal measures current eye position after the image/sequence barrier');
+{
+ const sequence=deferred();let frame='early',generated=0,revealed;
+ const r=new MirrorRun();r.start({generateAfterSequence:true,sequence:()=>sequence.promise,generate:()=>{generated++;return frame},reveal:image=>{revealed=image}});
+ await flush();assert.equal(generated,0,'Dummy must not capture at first detection');frame='latest';sequence.resolve();await flush();assert.equal(generated,1);assert.equal(revealed,'latest','Dummy uses the frame available when the sequence finishes');
+}
+{
+ const sequence=deferred();let generated=0;const r=new MirrorRun();r.start({generateAfterSequence:true,sequence:()=>sequence.promise,generate:()=>generated++,reveal:()=>assert.fail('Cancelled run')});await flush();r.reset();sequence.resolve();await flush();assert.equal(generated,0,'Shutdown before final capture must not start dummy processing');
+}
+console.log('PASS: dummy captures only after cues, reads newest frame, and skips capture after shutdown');

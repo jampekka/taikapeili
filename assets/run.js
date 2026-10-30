@@ -2,13 +2,14 @@
 export class MirrorRun {
  constructor(onChange=()=>{}){this.onChange=onChange;this.state='idle';this.active=null;this.error=null}
  setState(state){this.state=state;this.onChange(state,this)}
- start({generate,sequence,beforeReveal=async image=>image,reveal}){
+ start({generate,sequence,beforeReveal=async image=>image,reveal,generateAfterSequence=false}){
   if(this.state!=='idle')return false;
-  const run={controller:new AbortController(),started:performance.now(),imageReady:false,sequenceDone:false};
+  const run={controller:new AbortController(),started:performance.now(),imageReady:false,sequenceDone:false,generateAfterSequence};
   this.active=run;this.error=null;this.setState('running');
   const signal=run.controller.signal;
-  const image=Promise.resolve().then(()=>generate(signal)).then(value=>{run.imageReady=true;return value});
   const cues=Promise.resolve().then(()=>sequence(signal)).then(()=>{run.sequenceDone=true});
+  const startImage=()=>{if(signal.aborted)throw new DOMException('Cancelled','AbortError');return generate(signal)};
+  const image=(generateAfterSequence?cues.then(startImage):Promise.resolve().then(startImage)).then(value=>{run.imageReady=true;return value});
   run.done=Promise.all([image,cues]).then(async([image])=>{
    if(this.active!==run||signal.aborted)return;
    const prepared=await beforeReveal(image,signal);

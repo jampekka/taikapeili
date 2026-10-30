@@ -4,9 +4,9 @@ Dummy mode is the default on every page load. It makes no image API calls. The U
 
 ## One run
 
-`assets/run.js` is the only lifecycle owner: idle → running → reveal → idle, or visible error. The first Tiny Face Detector result while idle captures a snapshot and starts image preparation and narration concurrently. Subsequent detections cannot start another run. While a run is active, optional debug detection only updates the overlay; it cannot start or cancel a run. A final live eye landmark pass aligns the reveal. Losing a face, its position/size, and viewport resize cannot cancel a run. Explicit page shutdown cancels it.
+`assets/run.js` is the only lifecycle owner: idle → running → reveal → idle, or visible error. The first Tiny Face Detector result while idle starts narration. In dummy mode it warms the masking model during the cues, then captures and processes the latest frame when the cues finish. In optional remote mode the initial snapshot and remote request still start alongside narration. Subsequent detections cannot start another run. While a run is active, optional debug detection only updates the overlay; it cannot start or cancel a run. A final live eye landmark pass aligns the reveal. Losing a face, its position/size, and viewport resize cannot cancel a run. Explicit page shutdown cancels it.
 
-The cues are “Tule lähemmäksi” immediately and “Katso syvälle silmiisi” at 3 seconds. The sequence completes at 7 seconds. A single reveal starts only when both the image is ready and the sequence has completed. There are no visitor IDs, cached stock scares, implicit retries, hidden backoffs or separate server busy locks. A preparation error is displayed with an explicit retry button.
+The cues are “Tule lähemmäksi” immediately and “Katso syvälle silmiisi” at 3 seconds. The sequence completes at 7 seconds. Dummy mode captures at that point; a single reveal follows as soon as local processing and final eye measurement finish. Remote mode retains the image/sequence completion barrier. There are no visitor IDs, cached stock scares, implicit retries, hidden backoffs or separate server busy locks. A preparation error is displayed with an explicit retry button.
 
 ## Dummy and reveal
 
@@ -22,7 +22,7 @@ One bundled 720 ms scream burst replaces all three former scare effects. It is e
 
 ## Remote image backup path
 
-Debug can opt into direct OpenAI `gpt-image-2.5-flare` or a retained OpenRouter model. Each remote run makes one request. A remote failure prepares the dummy from the same snapshot and uses the same reveal barrier; no second reveal is scheduled. Remote mode is not persisted across reloads.
+Debug can opt into direct OpenAI `gpt-image-2.5-flare` or a retained OpenRouter model. Each remote run makes one request. A remote failure prepares the dummy from a fresh camera snapshot and uses the same reveal barrier; no second reveal is scheduled. Remote mode is not persisted across reloads.
 
 `OPENAI_API_KEY` and optional `OPENROUTER_API_KEY` are Sites server secrets. They never enter browser code, config responses, logs or Git. The browser calls `/api/mirror/edit`; the Worker validates and forwards the single request without a per-user in-memory queue. Page cancellation is forwarded when exposed by the host. It does not guarantee cancellation of upstream billing.
 

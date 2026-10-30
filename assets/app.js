@@ -11,7 +11,7 @@ const revealMs=650,comeMs=3000,lookMs=4000;
 let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null;
 let source=null,stream=null,detector=null,segmenter=null,segmenterPromise=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null,configured=false;
 let config={provider:'local',model:DEFAULT_MODEL,morph:.7,volume:.65};
-const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,error:'none',sound:'locked',mask:'not needed',eyes:'not measured'};
+const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,frameAgeMs:null,error:'none',sound:'locked',mask:'not needed',eyes:'not measured'};
 const events=[],audio=new HorrorAudio();audio.setVolume(config.volume);
 const frame=document.createElement('canvas'),scan=document.createElement('canvas');
 const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alpha:false});
@@ -26,7 +26,7 @@ const run=new MirrorRun(state=>{
  updateDebug();
 });
 function log(message){events.unshift(`${new Date().toLocaleTimeString()} ${safeError(message)}`);events.length=Math.min(10,events.length);updateDebug()}
-function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state}`,`provider    ${config.provider==='local'?'dummy (no API calls)':config.model}`,`face scans  ${stats.detections} · ${stats.faces} faces`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`mask        ${stats.mask}`,`renderer    ${renderer.backend}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
+function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state}`,`provider    ${config.provider==='local'?'dummy (no API calls)':config.model}`,`face scans  ${stats.detections} · ${stats.faces} faces`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`mask        ${stats.mask}`,`renderer    ${renderer.backend}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
 function playActiveCue(){
  if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
  const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
@@ -54,10 +54,16 @@ function capture(){
  const scale=Math.max(frame.width/width,frame.height/height);ctx.save();ctx.translate(frame.width,0);ctx.scale(-1,1);ctx.drawImage(source,(frame.width-width*scale)/2,(frame.height-height*scale)/2,width*scale,height*scale);ctx.restore();return true;
 }
 function snapshot(){const image=document.createElement('canvas');image.width=frame.width;image.height=frame.height;image.getContext('2d').drawImage(frame,0,0);return image}
+function warmForeground(){if(!segmenterPromise)segmenterPromise=new PersonPresence().load(detector.tf);return segmenterPromise}
+async function latestDummy(face,signal){
+ moveFixture?.(performance.now());
+ if(!capture())throw new Error('Camera frame unavailable');
+ const image=snapshot(),capturedAt=performance.now();stats.captures++;log('Late dummy capture');
+ const result=await dummy(image,lastFace||face,signal);return {...result,capturedAt};
+}
 async function foreground(image){
  try{
-  if(!segmenterPromise)segmenterPromise=new PersonPresence().load(detector.tf);
-  segmenter=await segmenterPromise;const result=await segmenter.detect(image,{force:true});stats.mask=result.present?'snapshot only':'unavailable · vignette';return result.present?result.mask:null;
+  segmenter=await warmForeground();const result=await segmenter.detect(image,{force:true});stats.mask=result.present?'snapshot only':'unavailable · vignette';return result.present?result.mask:null;
  }catch{stats.mask='unavailable · vignette';return null}
 }
 async function dummy(image,face,signal){
@@ -72,11 +78,11 @@ function upload(image){const small=document.createElement('canvas'),scale=Math.m
 async function generate(image,face,signal){
  const started=performance.now();stats.imageMs=null;stats.providerMs=null;
  let result;
- if(config.provider==='local')result=await dummy(image,face,signal);
+ if(config.provider==='local')result=await latestDummy(face,signal);
  else{
   stats.apiCalls++;
   try{const response=await requestServerImage({imageData:upload(image),model:config.model,effect:'zombie',ratio:image.width/image.height,signal});stats.providerMs=response.providerMs;const edited=new Image();edited.src=response.dataUrl;await edited.decode();result={image:edited,focus:face.center}}
-  catch(error){if(signal.aborted)throw error;log(`Image provider failed → dummy backup: ${safeError(error)}`);result=await dummy(image,face,signal)}
+  catch(error){if(signal.aborted)throw error;log(`Image provider failed → dummy backup: ${safeError(error)}`);result=await latestDummy(face,signal)}
  }
  if(debug&&params.has('delay'))await delay(Math.min(30000,Number(params.get('delay'))||0),signal);
  stats.imageMs=performance.now()-started;log(`Image ready · ${Math.round(stats.imageMs)}ms`);return result;
@@ -95,12 +101,14 @@ async function beforeReveal(result,signal){
  return {...result,target};
 }
 async function reveal(result,signal){
+ stats.frameAgeMs=result.capturedAt===undefined?null:performance.now()-result.capturedAt;
  $('ritualText').hidden=true;renderer.show(result.image,revealMs,result.focus,result.target);stats.sound=muted?'muted':audio.play();stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log('Reveal');await delay(revealMs,signal);renderer.clearReveal();
 }
 function trigger(face){
  if(run.state!=='idle'||!source)return;
- const image=snapshot();stats.captures++;stats.error='none';log('Face → capture + sequence + image');
- run.start({generate:signal=>generate(image,face,signal),sequence,beforeReveal,reveal});
+ const local=config.provider==='local',image=local?null:snapshot();if(!local)stats.captures++;stats.error='none';stats.frameAgeMs=null;stats.imageMs=null;stats.providerMs=null;
+ if(local)warmForeground().catch(()=>{});log(local?'Face → sequence → final dummy capture':'Face → capture + sequence + image');
+ run.start({generate:signal=>generate(image,face,signal),generateAfterSequence:local,sequence,beforeReveal,reveal});
 }
 function drawTracking(faces){
  const c=$('tracking');c.hidden=!debug||!$('boxes').checked||run.state==='reveal';if(c.hidden)return;
