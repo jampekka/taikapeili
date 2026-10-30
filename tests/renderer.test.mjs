@@ -24,6 +24,13 @@ const powers=[];
 const live={source:{width:640,height:800},canvas:{width:0,height:0,getBoundingClientRect:()=>({width:640,height:800})},strength:.7,reduced:false,drawCPU(...args){powers.push(args[5])}};
 for(const waiting of [false,true,false]){live.waiting=waiting;MirrorRenderer.prototype.draw.call(live,1000)}
 assert.deepEqual(powers,[.025*.7,.025*.7,.025*.7],'A sequence waiting flag cannot affect live morph intensity');
+let speech=1;live.voiceLevel=()=>speech;
+for(let i=0;i<20;i++)MirrorRenderer.prototype.draw.call(live,1100+i*33);
+assert.ok(powers.at(-1)>.025*.7&&powers.at(-1)<=.025*.7*1.3,'Speech gently increases the existing warp within a fixed bound');
+assert.equal(live.strength,.7,'Speaking never edits the saved morph strength');assert.equal(live.liveView.power,powers.at(-1),'Eye projection follows the actual speaking warp');
+speech=0;for(let i=0;i<40;i++)MirrorRenderer.prototype.draw.call(live,1800+i*33);
+assert.ok(Math.abs(powers.at(-1)-.025*.7)<1e-8,'Silence settles back to base warp');
+speech=1;live.reduced=true;MirrorRenderer.prototype.draw.call(live,3200);assert.equal(powers.at(-1),.006*.7,'Reduced motion disables the extra speaking pulse');
 const realRAF=globalThis.requestAnimationFrame;globalThis.requestAnimationFrame=()=>1;
 try{
  const calls=[],underlay={running:true,gl:null,lastDraw:0,scareImage:{},until:750,draw(now){calls.push(['live',now])},drawReveal(now){calls.push(['reveal',now])},clearReveal(){this.scareImage=null;calls.push(['clear'])},onTick(){},tick(){}};

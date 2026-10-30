@@ -10,6 +10,7 @@ export class HorrorAudio {
   this.context=new Audio();this.context.onstatechange=()=>this.onStateChange();
   const limiter=this.context.createDynamicsCompressor();limiter.threshold.value=-8;limiter.knee.value=10;limiter.ratio.value=6;limiter.attack.value=.003;limiter.release.value=.12;
   this.output=this.context.createGain();this.output.gain.value=this.volume*.8;this.output.connect(limiter);limiter.connect(this.context.destination);
+  this.speechMeter=this.context.createAnalyser();this.speechMeter.fftSize=256;this.speechMeter.connect(this.output);this.speechSamples=new Float32Array(256);
  }
  prepare(){
   if(this.preparing)return this.preparing;
@@ -31,12 +32,18 @@ export class HorrorAudio {
   this.onStateChange();return this.status==='running';
  }
  duration(id,fallback=3){return this.buffers.get(id)?.duration||fallback}
+ speechLevel(){
+  if(this.context?.state!=='running'||!this.voices.some(v=>v.group==='whisper'||v.group==='instruction'))return 0;
+  this.speechMeter.getFloatTimeDomainData(this.speechSamples);let sum=0;
+  for(const sample of this.speechSamples)sum+=sample*sample;
+  return Math.min(1,Math.sqrt(sum/this.speechSamples.length)*24);
+ }
  setVolume(value){this.volume=Math.max(0,Math.min(1,value));if(this.output)this.output.gain.setTargetAtTime(this.volume*.8,this.context.currentTime,.02)}
  stop(group){for(const voice of this.voices)if(!group||voice.group===group){try{voice.node.stop()}catch{}}this.voices=this.voices.filter(v=>group&&v.group!==group)}
  playSample(id,group='scare',gain=1,duration){
   if(this.context?.state!=='running')return 'locked';
   const buffer=this.buffers.get(id);if(!buffer)return this.error?'sample error':'samples loading';
-  this.stop(group);const source=this.context.createBufferSource(),level=this.context.createGain();source.buffer=buffer;level.gain.value=gain;source.connect(level);level.connect(this.output);
+  this.stop(group);const source=this.context.createBufferSource(),level=this.context.createGain();source.buffer=buffer;level.gain.value=gain;source.connect(level);level.connect(group==='whisper'||group==='instruction'?this.speechMeter:this.output);
   if(duration===undefined)source.start();else{
    const length=Math.min(duration,buffer.duration),now=this.context.currentTime;
    level.gain.setValueAtTime(gain,now+Math.max(0,length-.04));level.gain.linearRampToValueAtTime(0,now+length);source.start(0,0,length);
