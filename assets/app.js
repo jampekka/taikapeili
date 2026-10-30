@@ -5,7 +5,7 @@ import {MirrorRun,delay} from './run.js';
 import {loadSettings,saveSettings,ENDINGS} from './settings.js';
 import {ScreenWakeLock} from './wake-lock.js';
 import {enterFullscreen} from './fullscreen.js';
-import {layoutLights} from './lights.js';
+import {layoutLights,APPROACH_BLINKS} from './lights.js';
 import {HorrorAudio} from './audio.js';
 import {SCREAMS} from './screams.js';
 import {safeError} from './provider.js';
@@ -45,7 +45,8 @@ function cue(text,id,duration){
  activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
  if(id==='come'){
   approachPulse?.cancel();
-  approachPulse=lightFrame.animate([{opacity:1},{opacity:renderer.reduced?.85:.65,offset:.45},{opacity:1}],{duration:1200,easing:'ease-in-out'});
+  const flashes=renderer.reduced?[{opacity:1},{opacity:.85,offset:.45},{opacity:1}]:APPROACH_BLINKS;
+  approachPulse=lightFrame.animate(flashes,{duration,easing:renderer.reduced?'ease-in-out':'linear'});
  }
  log(text);playActiveCue();
 }
