@@ -5,10 +5,8 @@ export class MirrorCycle {
   let hide=false;
   if(!face){if(now-this.lastSeen>1000){hide=this.phase!=='live';this.phase='live';this.ticket++;this.lastFace=null;this.nextCapture=0}return {hide,capture:false}}
   this.lastSeen=now;
-  // Cancel a clearly different position, but allow ordinary movement during a model request.
-  const prior=this.lastFace;
-  const jumped=prior&&(Math.hypot(face.center.x-prior.center.x,face.center.y-prior.center.y)>.35||Math.abs(Math.log(face.width/prior.width))>.8);
-  if(jumped&&this.phase!=='reveal'){hide=this.phase!=='live';this.phase='live';this.ticket++;this.nextCapture=0}
+  // Position and apparent size never gate, restart or cancel the ritual.
+  // Presence starts it; the prompts are theatrical, not positioning instructions.
   this.lastFace=face;
   if(this.phase==='reveal'&&now>=this.showUntil){this.phase='live';hide=true;this.nextCapture=now+6000}
   // The first detection triggers immediately: no stable-face wait or countdown.

@@ -154,7 +154,7 @@ async function loop(now){
    if(lastFace){presenceLastSeen=observedAt;if(!personWasHere){personWasHere=true;visitor++;lastGeneratedVisitor=-1;log('Person entered')}}else if(observedAt-presenceLastSeen>1000)personWasHere=false;
    if(lastFace&&stats.firstFaceAt===null)stats.firstFaceAt=observedAt;
    mirror.dataset.faces=String(detected.length);mirror.dataset.person=String(!!lastFace);mirror.dataset.maskCoverage=String(stats.personCoverage);const action=cycle.observe(lastFace,observedAt);mirror.dataset.detections=String(stats.scans);drawTracking(detected);
-   if(action.hide){cancelLeadIn();abortRequest('Request cancelled: person left or changed');visualUntil=0;renderer.until=0;phase('live')}
+   if(action.hide){cancelLeadIn();abortRequest('Request cancelled: person left');visualUntil=0;renderer.until=0;phase('live')}
    if(action.capture){phase('processing');void reveal(lastFace,action.ticket,run)}
 
    updateDebug();

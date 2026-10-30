@@ -71,3 +71,7 @@ References: https://openrouter.ai/api/v1/images/models , https://openrouter.ai/b
 ## Face-trigger regression fix
 
 An empty body mask no longer blocks triggering. When segmentation misses a close-up face, a separate Tiny Face Detector probe runs at up to 224px input without the landmark network. Recent face results are reused between probes. Body-model runtime failures disable only segmentation and preserve camera/face triggering. Debug now separates face checks/confidence, body-mask coverage and the actual trigger source; `?debug=1&detect=face` forces the face path for diagnosis.
+
+## Theatrical sequence
+
+Presence starts the sequence. “Tule lähemmäksi” and “Katso syvälle silmiisi” are timed theatrical cues: face position and apparent size do not advance, restart or cancel them. Sustained absence still ends the visit. The reveal has no live eye-alignment step.

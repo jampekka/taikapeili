@@ -14,8 +14,8 @@ c.observe(null,10900);assert.equal(c.complete(second.ticket,11000),false,'Depart
 const third=c.observe(face,12000);assert.equal(third.capture,true,'A new face entry triggers without settling');
 const smallMove={...face,center:{x:.6,y:.4}};assert.equal(c.observe(smallMove,12200).capture,false,'Normal movement does not restart a slow model call');
 assert.equal(c.complete(third.ticket,12300),true);
-c.reset();const fourth=c.observe(face,13000);const jumped={...face,center:{x:.95,y:.4}};
-const replaced=c.observe(jumped,13200);assert.equal(replaced.hide,true);assert.equal(replaced.capture,true);assert.equal(c.complete(fourth.ticket,13300),false,'A large position change invalidates the old face');
-c.reset();assert.equal(c.complete(replaced.ticket,13400),false,'Reset cancels pending work');
+c.reset();const fourth=c.observe(face,13000);const jumped={...face,center:{x:.95,y:.95},width:.95};
+const replaced=c.observe(jumped,13200);assert.equal(replaced.hide,false,'Moving across the frame or closer must not interrupt narration');assert.equal(replaced.capture,false,'Position and distance changes must not recapture');assert.equal(c.complete(fourth.ticket,13300),true,'The original request survives any position or size change');
+c.reset();assert.equal(c.complete(fourth.ticket,13400),false,'Reset cancels pending work');
 const failed=c.observe(face,14000);c.fail(failed.ticket,14100);assert.equal(c.observe(face,15000).capture,false,'Errors back off instead of rapid retries');
-console.log('PASS: empty scenes, immediate first capture, single request, splash duration, repeat, departure, normal motion, major jump, reset, error backoff');
+console.log('PASS: empty scenes, immediate first capture, single request, splash duration, repeat, departure, normal motion, position/distance independence, reset, error backoff');
