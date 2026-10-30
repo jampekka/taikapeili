@@ -53,15 +53,14 @@ function cue(text,id,duration){
 }
 async function approach(signal){
  log('Approach · 2s lead-in');await delay(startDelayMs,signal);
- const prompts=[['opening','Psst. Täällä peilissä. Katso.'],['come','Tule lähemmäksi.'],['here','Katso tänne.']];
- let speakingUntil=0,nextPromptAt=0,introduced=false,promptIndex=0;
+ const prompts={opening:'Psst. Täällä peilissä. Tule tänne.',come:'Tule lähemmäksi.',here:'Katso tänne.'};
+ let speakingUntil=0,nextPromptAt=0;
  while(true){
-  const now=performance.now(),near=run.facePresent&&lastFace?.width>=config.closeWidth,close=near&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))&&headFacing();
-  if(close&&introduced&&now>=speakingUntil)break;
-  if((!close||!introduced)&&run.facePresent&&now>=nextPromptAt){
-   if(near&&promptIndex===1)promptIndex=2;
-   const [id,text]=prompts[promptIndex],duration=Math.ceil(audio.duration(id,3)*1000);cue(text,id,duration);
-   if(id==='opening')introduced=true;promptIndex=(promptIndex+1)%prompts.length;
+  const now=performance.now(),near=run.facePresent&&lastFace?.width>=config.closeWidth,looking=run.facePresent&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))&&headFacing();
+  const id=near?(looking?null:'here'):(looking?'come':'opening');
+  if(!id&&now>=speakingUntil)break;
+  if(id&&run.facePresent&&now>=nextPromptAt){
+   const duration=Math.ceil(audio.duration(id,3)*1000);cue(prompts[id],id,duration);
    speakingUntil=now+duration;nextPromptAt=speakingUntil+1200;
   }
   await delay(100,signal);

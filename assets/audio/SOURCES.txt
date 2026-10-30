@@ -18,5 +18,5 @@ warning-private.mp3: “Älä kerro minusta kenellekään. Jos kerrot, niin kiro
 
 Selectable generated screams: scream-sharp.mp3, scream-shrill.mp3, scream-raw.mp3 (0.7 s each), scream-sharp-longer.mp3 (1.192 s). Generated once via OpenRouter with bytedance-seed/seed-audio-1-0 on 2026-10-30. Prompts requested one piercing, high-pitched adult female scream, dry isolated voice, no words, music or background sound. Sharp longer requests a complete natural release. Leading near-silence removed, peaks matched near -1.8 dBFS, short fades applied. All files are bundled; no runtime generation.
 
-opening.mp3: “Psst. Täällä peilissä. Katso.” Generated once via OpenRouter, ElevenLabs eleven-v4, Sarah, Finnish, whisper direction, seed 17, stability 0.5, similarity 0.75, style 0.45, 2026-10-31.
-look-here.mp3: “Katso tänne.” Generated once with the same Sarah voice, Finnish, whispering direction, style 0.65, 2026-10-31. The original come-closer.mp3 “Tule lähemmäksi.” is retained. These three bundled recordings repeat in order during approach; no runtime generation.
+opening.mp3: “Psst. Täällä peilissä. Tule tänne.” Generated once via OpenRouter, ElevenLabs eleven-v4, Sarah, Finnish, whisper direction, seed 17, stability 0.5, similarity 0.75, style 0.45, 2026-10-31.
+look-here.mp3: “Katso tänne.” Generated once with the same Sarah voice, Finnish, whispering direction, style 0.65, 2026-10-31. The original come-closer.mp3 “Tule lähemmäksi.” is retained. The approach selects the applicable bundled recording from viewer distance and head-facing status; no runtime generation.
