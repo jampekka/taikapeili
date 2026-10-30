@@ -9,7 +9,7 @@ for(const imageFirst of [true,false]){
  for(let i=0;i<10;i++)assert.equal(start(),false,'Further detections cannot start another run');
  (imageFirst?image:sequence).resolve(imageFirst?'portrait':undefined);await flush();assert.equal(reveals,0,'One completed branch cannot reveal');
  (imageFirst?sequence:image).resolve(imageFirst?undefined:'portrait');await flush();assert.equal(reveals,1);assert.equal(r.state,'reveal');assert.equal(start(),false);
- show.resolve();await flush();assert.equal(r.state,'finished');assert.equal(reveals,1);assert.equal(start(),false,'A continuously present face cannot repeat the sequence');r.observeFace(false,100);r.observeFace(false,3099);assert.equal(r.armed,false);r.observeFace(false,3100);assert.equal(r.state,'idle');assert.equal(r.armed,true);
+ show.resolve();await flush();assert.equal(r.state,'finished');assert.equal(reveals,1);assert.equal(start(),false,'A continuously present face cannot repeat the sequence');r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.armed,false);r.observeFace(false,1100);assert.equal(r.state,'idle');assert.equal(r.armed,true);
 }
 {
  const image=deferred(),sequence=deferred();let reveals=0;const r=new MirrorRun();r.start({generate:()=>image.promise,sequence:()=>sequence.promise,reveal:()=>reveals++});await flush();r.reset();image.resolve('stale');sequence.resolve();await flush();assert.equal(reveals,0,'Explicit shutdown discards stale results');assert.equal(r.state,'idle');
@@ -39,8 +39,8 @@ console.log('PASS: dummy captures only after cues, reads newest frame, and skips
 {
  const sequence=deferred();let captures=0;
  const r=new MirrorRun();r.start({generateAfterSequence:true,generate:()=>captures++,sequence:()=>sequence.promise,reveal:()=>assert.fail('Cancelled sequence must not reveal')});await flush();
- r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'running');r.observeFace(false,1100);assert.equal(r.state,'finished','One second of face loss cancels');assert.equal(r.armed,false);
- sequence.resolve();await flush();assert.equal(captures,0);r.observeFace(false,3099);assert.equal(r.state,'finished');r.observeFace(false,3100);assert.equal(r.state,'idle','Three seconds of absence rearms');
+ r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'running');r.observeFace(false,1100);assert.equal(r.state,'idle','One second of face loss cancels and rearms');assert.equal(r.armed,true);
+ sequence.resolve();await flush();assert.equal(captures,0);assert.equal(r.state,'idle','Cancelled generation stays discarded after rearming');
 }
 {
  const sequence=deferred(),image=deferred();const r=new MirrorRun();r.start({generate:()=>image.promise,sequence:()=>sequence.promise,reveal:()=>{}});await flush();r.observeFace(false,0);r.observeFace(false,800);r.observeFace(true,900);r.observeFace(false,1000);r.observeFace(false,1800);assert.equal(r.state,'running','Reappearance resets the missing-face clock');r.reset();sequence.resolve();image.resolve();await flush();
@@ -48,17 +48,17 @@ console.log('PASS: dummy captures only after cues, reads newest frame, and skips
 {
  const shown=deferred(),laugh=deferred();let laughs=0;const r=new MirrorRun();r.start({generate:()=>1,sequence:()=>{},reveal:()=>shown.promise,afterReveal:()=>{laughs++;return laugh.promise}});await flush();assert.equal(r.state,'reveal');assert.equal(laughs,0);shown.resolve();await flush();assert.equal(r.state,'after');assert.equal(laughs,1);assert.equal(r.start({}),false);laugh.resolve();await flush();assert.equal(r.state,'finished');
 }
-console.log('PASS: 1s cancellation, 3s absence rearm, brief-loss recovery, no repeated run, post-reveal completion ordering');
+console.log('PASS: 1s cancellation, 1s absence rearm, brief-loss recovery, no repeated run, post-reveal completion ordering');
 {
  const laugh=deferred(),speech=deferred();let instructions=0,signal;
  const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:s=>{instructions++;signal=s;return speech.promise}});
  await flush();assert.equal(r.state,'after');assert.equal(instructions,0,'Instruction waits until laugh finishes');laugh.resolve();await flush();assert.equal(r.state,'instruction');assert.equal(instructions,1);
  r.observeFace(false,100);r.observeFace(false,1100);assert.equal(r.state,'instruction','Face loss cannot stop post-scare speech');assert.equal(signal.aborted,false);
- r.observeFace(false,3100);assert.equal(r.armed,true);assert.equal(r.state,'instruction','Rearming cannot interrupt the current speech');r.observeFace(true,3200);assert.equal(r.start({}),false,'Another viewer must wait until the ending finishes');
+ assert.equal(r.armed,true);assert.equal(r.state,'instruction','Rearming cannot interrupt the current speech');r.observeFace(true,1200);assert.equal(r.start({}),false,'Another viewer must wait until the ending finishes');
  speech.resolve();await flush();assert.equal(r.state,'idle');assert.equal(instructions,1);
 }
 {
- const laugh=deferred();let instructions=0;const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:()=>instructions++});await flush();r.observeFace(false,100);r.observeFace(false,1200);assert.equal(r.state,'after');laugh.resolve();await flush();assert.equal(instructions,1,'Ending still plays for a viewer who left after the scare');assert.equal(r.state,'finished');
+ const laugh=deferred();let instructions=0;const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:()=>instructions++});await flush();r.observeFace(false,100);r.observeFace(false,1200);assert.equal(r.state,'after');laugh.resolve();await flush();assert.equal(instructions,1,'Ending still plays for a viewer who left after the scare');assert.equal(r.state,'idle');
 }
 console.log('PASS: post-scare laugh/speech finish despite absence, play once, and block a new run until completion');
 {
@@ -70,16 +70,16 @@ console.log('PASS: post-scare laugh/speech finish despite absence, play once, an
 {
  const close=deferred();let sequences=0;
  const r=new MirrorRun();r.observeFace(true,0);r.start({approach:()=>close.promise,sequence:()=>sequences++,generate:()=>assert.fail('Cancelled approach cannot capture'),reveal:()=>assert.fail('Cancelled approach cannot reveal')});
- await flush();r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'approach');r.observeFace(false,1100);assert.equal(r.state,'finished');close.resolve();await flush();assert.equal(sequences,0);r.observeFace(false,3100);assert.equal(r.state,'idle');
+ await flush();r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'approach');r.observeFace(false,1100);assert.equal(r.state,'idle');close.resolve();await flush();assert.equal(sequences,0);assert.equal(r.state,'idle');
 }
-console.log('PASS: approach gates narration and generation; one approach loop; 1s loss cancellation and 3s rearm');
+console.log('PASS: approach gates narration and generation; one approach loop; 1s loss cancellation and 1s rearm');
 
 {
  const speech=deferred(),second=deferred(),cached={image:'cached',focus:{x:.4,y:.3},target:{x:.5,y:.4}};
  let captures=0,alignments=0,encores=0,first;
  const r=new MirrorRun();r.start({generate:()=>{captures++;return cached},sequence:()=>{},beforeReveal:value=>{alignments++;return value},reveal:value=>{first=value},instruction:()=>speech.promise,encore:(value,signal)=>{encores++;assert.equal(value,first,'Second scare uses the exact prepared image and placement');assert.equal(signal.aborted,false);return second.promise}});
  await flush();assert.equal(r.state,'instruction');assert.equal(encores,0,'Second scare must wait for the ending');
- r.observeFace(false,0);r.observeFace(false,3000);assert.equal(r.armed,true);speech.resolve();await flush();assert.equal(r.state,'reveal');assert.equal(encores,1);assert.equal(captures,1);assert.equal(alignments,1);assert.equal(r.start({}),false,'Rearming cannot overlap the second scare');
+ r.observeFace(false,0);r.observeFace(false,1000);assert.equal(r.armed,true);speech.resolve();await flush();assert.equal(r.state,'reveal');assert.equal(encores,1);assert.equal(captures,1);assert.equal(alignments,1);assert.equal(r.start({}),false,'Rearming cannot overlap the second scare');
  r.observeFace(false,5000);assert.equal(r.state,'reveal','Face loss cannot stop second scare');second.resolve();await flush();assert.equal(r.state,'idle');
 }
 {

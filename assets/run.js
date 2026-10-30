@@ -8,7 +8,7 @@ export class MirrorRun {
   if(this.absentSince===null)this.absentSince=now;
   const absentFor=now-this.absentSince;
   if((this.state==='approach'||this.state==='running')&&absentFor>=1000)this.cancel();
-  if(absentFor>=3000){this.armed=true;if(this.state==='finished')this.setState('idle')}
+  if(absentFor>=1000){this.armed=true;if(this.state==='finished')this.setState('idle')}
  }
  cancel(){const run=this.active;this.active=null;run?.controller.abort();this.setState('finished')}
  start({generate,sequence,approach=null,beforeReveal=async image=>image,reveal,afterReveal=async()=>{},instruction=null,encore=null,generateAfterSequence=false}){
