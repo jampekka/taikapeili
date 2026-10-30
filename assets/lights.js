@@ -1,6 +1,10 @@
 // Three regular groups of three 60 ms flashes during the 1.6 s come-closer clip.
 const blinkSteps=[[0,.03]];
-for(const start of [100,600,1100])for(let i=0;i<3;i++)blinkSteps.push([start+i*120,1],[start+i*120+60,.03]);
+for(const start of [100,600,1100])for(let i=0;i<3;i++){
+ blinkSteps.push([start+i*120,1]);
+ // Hold the final flash on, merging it into the normal steady bulbs.
+ if(start!==1100||i!==2)blinkSteps.push([start+i*120+60,.03]);
+}
 blinkSteps.push([1600,1]);
 export const APPROACH_BLINKS=blinkSteps.map(([ms,opacity])=>({offset:ms/1600,opacity,easing:'steps(1,end)'}));
 
