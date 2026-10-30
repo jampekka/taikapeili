@@ -12,9 +12,9 @@ The cues are “Tule lähemmäksi” immediately and “Katso syvälle silmiisi�
 
 The dummy applies local horror makeup to the captured image. A single landmark pass measures the eyes on that snapshot. A snapshot-only BodyPix mask removes the background where available; segmentation never controls triggering. The completed dummy is rotated around the eye midpoint so the eyes are level. Estimated eye positions are used if landmarks fail.
 
-The reveal uses a separate full-resolution 2D canvas. It has no RGB displacement, morphing or oscillation. Vanity lights go off; the image zooms from 0.02 scale to 1.3 in 60 ms, then pushes to 1.6 around the captured eye midpoint, positioned at the latest live eye midpoint. A final live landmark pass runs before the lights go off. The reveal ends at 650 ms. Reduced motion uses a static scale.
+The reveal uses a separate full-resolution 2D canvas. It has no RGB displacement, morphing or oscillation. Vanity lights go off; the image zooms from 0.02 scale to 1.3 in 60 ms, then pushes to 1.6 around the captured eye midpoint, positioned at the latest live eye midpoint. A final live landmark pass runs before the lights go off. The target is projected through the current live warp so its screen height matches the preview; WebGL’s bottom-origin coordinates are converted explicitly. The reveal ends at 650 ms. Reduced motion uses a static scale.
 
-The live mirror retains its existing radial RGB warp. The debug overlay stays visible during the sequence and follows the live green-channel warp; toggling it does not change morph strength.
+The live mirror retains its existing radial RGB warp. The debug overlay stays visible during the sequence, draws measured eyes as yellow crosshairs when available, and follows the live green-channel warp; toggling it does not change morph strength.
 
 ## Sound
 

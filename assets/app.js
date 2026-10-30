@@ -8,7 +8,7 @@ import {DEFAULT_MODEL,requestServerImage,safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
 const revealMs=650,comeMs=3000,lookMs=4000;
-let trackedFaces=[],activeCue=null,liveEyeFocus=null,moveFixture=null;
+let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null;
 let source=null,stream=null,detector=null,segmenter=null,segmenterPromise=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null,configured=false;
 let config={provider:'local',model:DEFAULT_MODEL,morph:.7,volume:.65};
 const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,error:'none',sound:'locked',mask:'not needed',eyes:'not measured'};
@@ -82,16 +82,16 @@ async function generate(image,face,signal){
  stats.imageMs=performance.now()-started;log(`Image ready · ${Math.round(stats.imageMs)}ms`);return result;
 }
 function updateLiveEyes(faces){
- const eyes=faces[0]?.eyes;if(eyes?.length===2)liveEyeFocus={x:(eyes[0].x+eyes[1].x)/2,y:(eyes[0].y+eyes[1].y)/2};
+ const eyes=faces[0]?.eyes;if(eyes?.length===2){liveEyes=eyes;liveEyeFocus={x:(eyes[0].x+eyes[1].x)/2,y:(eyes[0].y+eyes[1].y)/2}}
 }
 async function beforeReveal(result,signal){
  // Take a final landmark measurement with the lights still on. The image itself
  // remains the original captured portrait; only its on-screen anchor changes.
  if(capture()){
   const eyesFrame=document.createElement('canvas');eyesFrame.height=240;eyesFrame.width=Math.max(1,Math.round(240*frame.width/frame.height));eyesFrame.getContext('2d').drawImage(frame,0,0,eyesFrame.width,eyesFrame.height);
-  const faces=await detector.detect(eyesFrame,true).catch(()=>[]);if(signal.aborted)throw new DOMException('Cancelled','AbortError');updateLiveEyes(faces);
+  const faces=await detector.detect(eyesFrame,true).catch(()=>[]);if(signal.aborted)throw new DOMException('Cancelled','AbortError');updateLiveEyes(faces);if(faces.length)trackedFaces=faces;
  }
- const target=liveEyeFocus||{x:.5,y:.42};log(`Reveal eyes: captured ${result.focus.y.toFixed(3)} → latest ${target.y.toFixed(3)}`);
+ const latest=liveEyeFocus||{x:.5,y:.42},displayEyes=(liveEyes||[latest]).map(eye=>renderer.projectPoint(eye)),target={x:displayEyes.reduce((s,p)=>s+p.x,0)/displayEyes.length,y:displayEyes.reduce((s,p)=>s+p.y,0)/displayEyes.length};log(`Reveal eyes: captured ${result.focus.y.toFixed(3)} → latest ${target.y.toFixed(3)}`);
  return {...result,target};
 }
 async function reveal(result,signal){
@@ -106,7 +106,9 @@ function drawTracking(faces){
  const c=$('tracking');c.hidden=!debug||!$('boxes').checked||run.state==='reveal';if(c.hidden)return;
  const r=glass.getBoundingClientRect(),w=Math.round(r.width),h=Math.round(r.height);if(c.width!==w||c.height!==h){c.width=w;c.height=h}
  const t=c.getContext('2d');t.clearRect(0,0,w,h);t.strokeStyle='#9dffb0';t.lineWidth=2;
- for(const f of faces){const left=f.center.x-f.width/2,top=f.center.y-f.height/2;const corners=[{x:left,y:top},{x:left+f.width,y:top},{x:left+f.width,y:top+f.height},{x:left,y:top+f.height}];t.beginPath();for(let side=0;side<4;side++)for(let i=0;i<8;i++){const a=corners[side],b=corners[(side+1)%4],p=renderer.projectPoint({x:a.x+(b.x-a.x)*i/8,y:a.y+(b.y-a.y)*i/8});if(!side&&!i)t.moveTo(p.x*w,p.y*h);else t.lineTo(p.x*w,p.y*h)}t.closePath();t.stroke()}
+ for(const f of faces){const left=f.center.x-f.width/2,top=f.center.y-f.height/2;const corners=[{x:left,y:top},{x:left+f.width,y:top},{x:left+f.width,y:top+f.height},{x:left,y:top+f.height}];t.beginPath();for(let side=0;side<4;side++)for(let i=0;i<8;i++){const a=corners[side],b=corners[(side+1)%4],p=renderer.projectPoint({x:a.x+(b.x-a.x)*i/8,y:a.y+(b.y-a.y)*i/8});if(!side&&!i)t.moveTo(p.x*w,p.y*h);else t.lineTo(p.x*w,p.y*h)}t.closePath();t.stroke();
+  if(f.eyes?.length===2){t.strokeStyle='#ffdf65';t.fillStyle='#ffdf65';for(const eye of f.eyes){const p=renderer.projectPoint(eye),x=p.x*w,y=p.y*h;t.beginPath();t.arc(x,y,4,0,Math.PI*2);t.stroke();t.beginPath();t.moveTo(x-9,y);t.lineTo(x+9,y);t.moveTo(x,y-9);t.lineTo(x,y+9);t.stroke()}t.strokeStyle='#9dffb0'}
+ }
 }
 
 async function loop(now){
@@ -115,13 +117,13 @@ async function loop(now){
   lastScan=now;
   try{if(capture()){
    scan.height=240;scan.width=Math.max(1,Math.round(240*frame.width/frame.height));scanCtx.drawImage(frame,0,0,scan.width,scan.height);
-   const faces=await detector.detect(scan);if(current!==epoch)return;updateLiveEyes(faces);trackedFaces=faces;lastFace=faces[0]||null;stats.detections++;stats.faces=faces.length;mirror.dataset.faces=String(faces.length);drawTracking(faces);
+   const faces=await detector.detect(scan,debug&&$('boxes').checked&&run.state!=='idle');if(current!==epoch)return;updateLiveEyes(faces);trackedFaces=faces;lastFace=faces[0]||null;stats.detections++;stats.faces=faces.length;mirror.dataset.faces=String(faces.length);drawTracking(faces);
    if(lastFace)trigger(lastFace);updateDebug();
   }}catch(error){log(`Detection: ${safeError(error)}`)}
  }
  if(current===epoch&&source)raf=requestAnimationFrame(loop);
 }
-function stop(){moveFixture=null;liveEyeFocus=null;activeCue=null;trackedFaces=[];epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
+function stop(){moveFixture=null;liveEyeFocus=null;liveEyes=null;activeCue=null;trackedFaces=[];epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
 async function start(){
  if(starting||source)return;starting=true;const current=++epoch;$('startup').hidden=false;$('enable').hidden=true;$('message').textContent='Opening the mirror…';
  try{

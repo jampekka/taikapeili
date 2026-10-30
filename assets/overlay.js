@@ -9,6 +9,7 @@ export function sampleLivePoint(p,{cover=[1,1],power=0,time=0}={}){
  return {x,y};
 }
 export function projectLivePoint(point,view={}){
+ if(view.flipY){const projected=projectLivePoint({x:point.x,y:1-point.y},{...view,flipY:false});return {x:projected.x,y:1-projected.y}}
  const cover=view.cover||[1,1],target={x:1-((point.x-.5)*cover[0]+.5),y:(point.y-.5)*cover[1]+.5};
  let p={...point};for(let i=0;i<6;i++){const q=sampleLivePoint(p,view);p={x:p.x+(q.x-target.x)/cover[0],y:p.y-(q.y-target.y)/cover[1]}}
  return p;

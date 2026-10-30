@@ -17,7 +17,7 @@ export class MirrorRenderer {
  show(image,duration=650,focus={x:.5,y:.42},target={x:.5,y:.42}){this.scareImage=image;this.focus=focus;this.target=target;this.scareAt=performance.now();this.until=this.scareAt+duration;this.drawReveal(this.scareAt)}
  clearReveal(){this.until=0;this.scareImage=null;if(this.revealCanvas)this.revealCanvas.hidden=true}
  drawReveal(now){
-  if(!this.revealCanvas||!this.scareImage)return;const c=this.revealCanvas,ctx=this.revealContext,r=c.getBoundingClientRect();
+  if(!this.revealCanvas||!this.scareImage)return;const c=this.revealCanvas,ctx=this.revealContext;c.hidden=false;const r=c.getBoundingClientRect();
   const h=Math.min(1200,Math.round(r.height)),w=Math.round(h*r.width/Math.max(1,r.height));if(c.width!==w||c.height!==h){c.width=w;c.height=h}
   c.hidden=false;ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);
   const image=this.scareImage,iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height;
@@ -29,7 +29,7 @@ export class MirrorRenderer {
   const rect=this.canvas.getBoundingClientRect(),ratio=rect.width/Math.max(1,rect.height);const h=Math.min(this.gl?1080:320,Math.round((this.gl?1280:320)/ratio)),w=Math.round(h*ratio);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h}
   const zoom=1,power=(this.reduced?.006:this.waiting?.05:.025)*this.strength;
   const imageRatio=iw/ih,cover=imageRatio>ratio?[ratio/imageRatio,1]:[1,imageRatio/ratio];
-  this.liveView={cover,power,time:now/1000};
+  this.liveView={cover,power,time:now/1000,flipY:!!this.gl};
   if(this.gl){const gl=this.gl;gl.viewport(0,0,w,h);gl.useProgram(this.program);gl.bindTexture(gl.TEXTURE_2D,this.texture);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)}catch{return}for(const [n,v] of Object.entries({time:now/1000,zoom,power,mirror:active?0:1,scare:active?1:0}))gl.uniform1f(this.uniforms[n],v);gl.uniform2f(this.uniforms.cover,...cover);gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}
   else{this.drawCPU(image,w,h,cover,zoom,power,now/1000,!active)}
  }
