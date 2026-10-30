@@ -7,12 +7,13 @@ const mirror=$('mirror'),glass=$('glass'),video=$('camera'),reflection=$('reflec
 const params=new URLSearchParams(location.search),fixture=params.get('test'),debug=params.has('debug')&&params.get('debug')!=='0',muted=params.get('mute')==='1';
 const effect=['zombie','ghost','aged'].includes(params.get('effect'))?params.get('effect'):'zombie';
 let stream=null,detector=null,detectorPromise=null,source=null,raf=null,lastScan=-Infinity,lastVideoTime=-1,generation=0,wakeLock=null,fixtureImage=null,opening=false,activeRequest=null,lastFace=null;
+let inputMaxEdge=512;
 const frame=document.createElement('canvas'),scan=document.createElement('canvas');
 const frameContext=frame.getContext('2d',{alpha:false}),scanContext=scan.getContext('2d',{alpha:false});
 const cycle=new MirrorCycle(),audio=new HorrorAudio(),events=[];
 const stats={detector:'loading',scans:0,faces:0,confidence:0,inferenceMs:0,renderMs:null,firstFaceAt:null,reveals:0,apiCalls:0,apiCost:0,costKnown:false,lastSound:'none',error:'none',lastTrigger:'none'};
 let serverConfigured=false;
-let config={provider:'auto',model:DEFAULT_MODEL,sound:'random',volume:.65};
+let config={provider:'auto',model:DEFAULT_MODEL,resolution:'auto',sound:'random',volume:.65};
 try{const saved=JSON.parse(sessionStorage.getItem('mirror-controls')||'{}');for(const key of Object.keys(config))if(saved[key]!==undefined)config[key]=saved[key]}catch{}
 audio.setVolume(Number(config.volume)||0);
 function saveConfig(){try{sessionStorage.setItem('mirror-controls',JSON.stringify(config))}catch{}}
@@ -57,6 +58,7 @@ function drawTracking(faces){
  if(!debug)return;const c=$('tracking');c.hidden=!$('boxes').checked;if(c.hidden)return;const r=glass.getBoundingClientRect();c.width=Math.round(r.width);c.height=Math.round(r.height);const ctx=c.getContext('2d');ctx.strokeStyle='#9dffb0';ctx.lineWidth=2;ctx.font='12px monospace';ctx.fillStyle='#aaffba';
  for(const f of faces){const x=(f.center.x-f.width/2)*c.width,y=(f.center.y-f.height/2)*c.height;ctx.strokeRect(x,y,f.width*c.width,f.height*c.height);ctx.fillText(`${Math.round(f.score*100)}%`,x+4,Math.max(16,y-7));for(const eye of f.eyes){ctx.beginPath();ctx.arc(eye.x*c.width,eye.y*c.height,4,0,Math.PI*2);ctx.fill()}}
 }
+function encodeUpload(snapshot){const scale=Math.min(1,inputMaxEdge/Math.max(snapshot.width,snapshot.height)),small=document.createElement('canvas');small.width=Math.max(1,Math.round(snapshot.width*scale));small.height=Math.max(1,Math.round(snapshot.height*scale));small.getContext('2d').drawImage(snapshot,0,0,small.width,small.height);return small.toDataURL('image/jpeg',.8)}
 async function reveal(face,ticket,run){
  if(activeRequest){cycle.fail(ticket,performance.now());return}
  const snapshot=document.createElement('canvas');snapshot.width=frame.width;snapshot.height=frame.height;snapshot.getContext('2d').drawImage(frame,0,0);
@@ -66,7 +68,7 @@ async function reveal(face,ticket,run){
   let edited;
   if(request.provider==='server'){
    stats.apiCalls++;
-   const response=await requestServerImage({imageData:snapshot.toDataURL('image/jpeg',.86),model:config.model,effect,ratio:snapshot.width/snapshot.height,signal:request.controller.signal});
+   const response=await requestServerImage({imageData:encodeUpload(snapshot),model:config.model,effect,ratio:snapshot.width/snapshot.height,resolution:config.resolution,signal:request.controller.signal});
    if(response.cost!==null){stats.apiCost+=response.cost;stats.costKnown=true}
    edited=new Image();edited.src=response.dataUrl;await edited.decode();
   }else{edited=await transformSnapshot({image:snapshot,face,effect})}
@@ -125,19 +127,19 @@ function updateDebug(){
  if(!debug)return;
  const running=activeRequest?`${Math.round(performance.now()-activeRequest.started)}ms`:'—';
  const resolution=source?`${source.videoWidth||source.width}×${source.videoHeight||source.height}`:'not open';
- $('debugState').textContent=[`phase       ${mirror.dataset.phase}`,`source      ${fixture||'camera'} · ${resolution}`,`detector    ${stats.detector}`,`faces       ${stats.faces} · ${Math.round(stats.confidence*100)}%`,`scan        ${stats.scans} · ${Math.round(stats.inferenceMs)}ms`,`provider    ${config.provider==='local'?'dummy':config.model}`,`key         ${serverConfigured?'configured on server':'not configured'}`,`request     ${running}`,`last render ${stats.renderMs===null?'—':Math.round(stats.renderMs)+'ms'}`,`reveals     ${stats.reveals} · first detection triggers now`,`audio       ${muted?'muted by query':audio.status} · ${stats.lastSound}`,`API calls   ${stats.apiCalls} · cost ${stats.costKnown?'$'+stats.apiCost.toFixed(4):'not reported'}`,`last error  ${stats.error}`].join('\n');
+ $('debugState').textContent=[`phase       ${mirror.dataset.phase}`,`source      ${fixture||'camera'} · ${resolution}`,`detector    ${stats.detector}`,`faces       ${stats.faces} · ${Math.round(stats.confidence*100)}%`,`scan        ${stats.scans} · ${Math.round(stats.inferenceMs)}ms`,`provider    ${config.provider==='local'?'dummy':config.model}`,`image size  upload ≤${inputMaxEdge}px · output ${config.resolution}`,`key         ${serverConfigured?'configured on server':'not configured'}`,`request     ${running}`,`last render ${stats.renderMs===null?'—':Math.round(stats.renderMs)+'ms'}`,`reveals     ${stats.reveals} · first detection triggers now`,`audio       ${muted?'muted by query':audio.status} · ${stats.lastSound}`,`API calls   ${stats.apiCalls} · cost ${stats.costKnown?'$'+stats.apiCost.toFixed(4):'not reported'}`,`last error  ${stats.error}`].join('\n');
  $('debugEvents').textContent=events.join('\n');
 }
 async function loadServerConfig(){
- try{const response=await fetch('/api/mirror/config',{cache:'no-store'});if(!response.ok)throw new Error('Server configuration unavailable');const data=await response.json();serverConfigured=!!data.configured;if(config.provider==='auto')config.provider=serverConfigured?'server':'local';if(!serverConfigured&&config.provider==='server')config.provider='local';if(config.model===DEFAULT_MODEL&&data.model)config.model=data.model;if(debug){$('serverKeyStatus').textContent=serverConfigured?'Server key configured · no key entry needed':'No server key configured in this preview.';$('apiModel').value=config.model;$('providerStatus').textContent=config.provider==='server'?`Using ${config.model}.`:'Using the local dummy effect.'}log(serverConfigured?'Server image provider ready':'Local preview · dummy provider')}
+ try{const response=await fetch('/api/mirror/config',{cache:'no-store'});if(!response.ok)throw new Error('Server configuration unavailable');const data=await response.json();serverConfigured=!!data.configured;inputMaxEdge=data.inputMaxEdge||512;if(config.provider==='auto')config.provider=serverConfigured?'server':'local';if(!serverConfigured&&config.provider==='server')config.provider='local';if(config.model===DEFAULT_MODEL&&data.model)config.model=data.model;if(debug){$('serverKeyStatus').textContent=serverConfigured?'Server key configured · no key entry needed':'No server key configured in this preview.';$('apiModel').value=config.model;$('providerStatus').textContent=config.provider==='server'?`Using ${config.model}.`:'Using the local dummy effect.'}log(serverConfigured?'Server image provider ready':'Local preview · dummy provider')}
  catch(error){if(config.provider==='auto')config.provider='local';log(safeError(error))}
 }
 function resetProvider(){abortRequest('Provider changed');cycle.reset();phase('live');if(fixture)drawFixture();stats.error='none';$('providerStatus').textContent=config.provider==='server'?`Using ${config.model}. Face snapshots are sent automatically.`:'Using the local dummy effect.';saveConfig();updateDebug()}
 
 if(debug){
- $('debug').hidden=false;$('apiModel').value=config.model;$('sound').value=config.sound;$('volume').value=Math.round(config.volume*100);
+ $('debug').hidden=false;$('resolution').value=config.resolution;$('apiModel').value=config.model;$('sound').value=config.sound;$('volume').value=Math.round(config.volume*100);
  $('providerStatus').textContent=config.provider==='server'?`Using ${config.model}.`:'No image model connected · local dummy.';
- $('providerForm').addEventListener('submit',event=>{event.preventDefault();if(!serverConfigured){$('providerStatus').textContent='The server key is not configured.';return}config.model=$('apiModel').value.trim()||DEFAULT_MODEL;config.provider='server';resetProvider();log('Server image model enabled')});
+ $('providerForm').addEventListener('submit',event=>{event.preventDefault();if(!serverConfigured){$('providerStatus').textContent='The server key is not configured.';return}config.model=$('apiModel').value.trim()||DEFAULT_MODEL;config.resolution=$('resolution').value;config.provider='server';resetProvider();log('Server image model enabled')});
  $('useLocal').addEventListener('click',()=>{config.provider='local';resetProvider();log('Local dummy enabled')});
  $('sound').addEventListener('change',event=>{config.sound=event.target.value;saveConfig()});$('volume').addEventListener('input',event=>{config.volume=Number(event.target.value)/100;audio.setVolume(config.volume);saveConfig()});
  $('boxes').addEventListener('change',()=>{if(!$('boxes').checked)$('tracking').hidden=true});

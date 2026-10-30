@@ -3,6 +3,9 @@ import {buildImageRequest,decodeImageResponse,requestImage,API_URL,DEFAULT_MODEL
 const imageData='data:image/jpeg;base64,ZmFrZQ==';
 const body=buildImageRequest({imageData,ratio:.75});
 assert.equal(body.model,DEFAULT_MODEL);assert.equal(body.aspect_ratio,'3:4');assert.equal(body.resolution,'1K');assert.equal(body.input_references[0].image_url.url,imageData);
+assert.equal(buildImageRequest({imageData,model:'google/gemini-3.1-flash-image'}).resolution,'512');
+assert.equal(buildImageRequest({imageData,model:'google/gemini-3.1-flash-image',resolution:'1K'}).resolution,'1K');
+const klein=buildImageRequest({imageData,model:'black-forest-labs/flux.2-klein-4b',resolution:'512'});assert.equal(klein.resolution,undefined);assert.equal(klein.output_format,'jpeg');
 assert.match(body.prompt,/Preserve/);assert.equal(JSON.stringify(body).includes('apiKey'),false);
 assert.throws(()=>buildImageRequest({imageData:'javascript:bad'}),/Invalid captured image/);
 assert.throws(()=>decodeImageResponse({data:[]}),/no edited image/);

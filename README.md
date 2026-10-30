@@ -46,3 +46,7 @@ References: https://openrouter.ai/blog/tutorials/nano-banana/ and https://openro
 ## Assets and privacy
 
 Local dummy mode sends no camera frames or landmarks anywhere and retains them only in memory. Remote mode sends captured JPEGs to OpenRouter as described above. Face detection is geometric tracking, not identity recognition. `assets/portrait.jpg` is the previously generated sample photo used only by the explicit test fixture, never normal camera mode. Third-party face-api.js/model licenses are in `assets/vendor/LICENSE` and `NOTICE.txt`. Horror audio is synthesized by this project.
+
+## Lower-latency profiles
+
+Remote snapshots are resized to at most 512px on the long edge before JPEG encoding. Debug exposes output-size selection for models that support it. Nano Banana Lite remains restricted to 1K output; Nano Banana 2 supports 512px and 1K in this app, defaulting to 512px. FLUX.2 Klein 4B is available as a lighter image editor; it uses its native output size and JPEG output, without sending an unsupported resolution parameter. Live same-portrait latency comparisons guide the production default via IMAGE_MODEL. Actual latency varies with provider load.
