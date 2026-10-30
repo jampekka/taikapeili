@@ -43,8 +43,9 @@ export class HorrorAudio {
   }
   source.onended=()=>{source.disconnect();level.disconnect();this.voices=this.voices.filter(v=>v.node!==source)};this.voices.push({node:source,group});return id;
  }
- warning(ending='invite'){return this.playSample(ending==='secret'?'warningPrivate':'warning','instruction',.9)}
- laugh(){return this.playSample('laugh','laugh',.85)}
- say(id){return this.playSample(id,'whisper',.85)}
+ // Speech and laugh sit about 4 dB lower to preserve the scream's contrast.
+ warning(ending='invite'){return this.playSample(ending==='secret'?'warningPrivate':'warning','instruction',.57)}
+ laugh(){return this.playSample('laugh','laugh',.54)}
+ say(id){return this.playSample(id,'whisper',.54)}
  play(duration,scream='scare'){this.stop('whisper');return this.playSample(Object.hasOwn(SCREAMS,scream)?scream:'scare','scare',1,duration)}
 }
