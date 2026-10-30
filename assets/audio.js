@@ -1,5 +1,5 @@
 import {SCREAMS} from './screams.js';
-const FILES={...Object.fromEntries(Object.entries(SCREAMS).map(([id,sound])=>[id,sound.file])),come:'come-closer.mp3',secret:'secret.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3',warning:'warning.mp3',warningPrivate:'warning-private.mp3'};
+const FILES={...Object.fromEntries(Object.entries(SCREAMS).map(([id,sound])=>[id,sound.file])),opening:'opening.mp3',come:'come-closer.mp3',here:'look-here.mp3',secret:'secret.mp3',look:'look-deeper.mp3',laugh:'nelson-haha.mp3',warning:'warning.mp3',warningPrivate:'warning-private.mp3'};
 export class HorrorAudio {
  constructor(){this.context=null;this.output=null;this.voices=[];this.volume=.65;this.buffers=new Map();this.error=null;this.onStateChange=()=>{};this.prepare().catch(()=>{})}
  get ready(){return Object.keys(FILES).every(id=>this.buffers.has(id))}

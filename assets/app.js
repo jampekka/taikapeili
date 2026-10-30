@@ -5,7 +5,7 @@ import {MirrorRun,delay} from './run.js';
 import {loadSettings,saveSettings,ENDINGS} from './settings.js';
 import {ScreenWakeLock} from './wake-lock.js';
 import {enterFullscreen} from './fullscreen.js';
-import {layoutLights,APPROACH_BLINKS} from './lights.js';
+import {layoutLights,approachBlinks} from './lights.js';
 import {HorrorAudio} from './audio.js';
 import {SCREAMS} from './screams.js';
 import {safeError} from './provider.js';
@@ -43,21 +43,23 @@ function playActiveCue(){
 }
 function cue(text,id,duration){
  activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
- if(id==='come'){
+ if(id==='opening'||id==='come'||id==='here'){
   approachPulse?.cancel();
-  const flashes=renderer.reduced?[{opacity:1},{opacity:.85,offset:.45},{opacity:1}]:APPROACH_BLINKS;
+  const flashes=renderer.reduced?[{opacity:1},{opacity:.85,offset:.45},{opacity:1}]:approachBlinks(duration);
   approachPulse=lightFrame.animate(flashes,{duration,easing:renderer.reduced?'ease-in-out':'linear'});
  }
  log(text);playActiveCue();
 }
 async function approach(signal){
  log('Approach · 2s lead-in');await delay(startDelayMs,signal);
- let speakingUntil=0,nextPromptAt=0,prompted=false;
+ const prompts=[['opening','Psst. Täällä peilissä. Katso.'],['come','Tule lähemmäksi.'],['here','Katso tänne.']];
+ let speakingUntil=0,nextPromptAt=0,prompted=false,promptIndex=0;
  while(true){
   const now=performance.now(),close=run.facePresent&&lastFace?.width>=config.closeWidth&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye));
   if(close&&prompted&&now>=speakingUntil)break;
   if((!close||!prompted)&&run.facePresent&&now>=nextPromptAt){
-   const duration=Math.ceil(audio.duration('come',2)*1000);cue('Tule lähemmäksi.','come',duration);prompted=true;
+   const [id,text]=prompts[promptIndex],duration=Math.ceil(audio.duration(id,3)*1000);cue(text,id,duration);
+   if(id==='come')prompted=true;promptIndex=(promptIndex+1)%prompts.length;
    speakingUntil=now+duration;nextPromptAt=speakingUntil+1200;
   }
   await delay(100,signal);

@@ -1,12 +1,14 @@
-// Three regular groups of three 60 ms flashes during the 1.6 s come-closer clip.
-const blinkSteps=[[0,.03]];
-for(const start of [100,600,1100])for(let i=0;i<3;i++){
- blinkSteps.push([start+i*120,1]);
- // Hold the final flash on, merging it into the normal steady bulbs.
- if(start!==1100||i!==2)blinkSteps.push([start+i*120+60,.03]);
+// Keep flashes around 60 ms while spacing three groups across the current clip.
+export function approachBlinks(duration=1600){
+ const length=Math.max(1400,duration),starts=[100,(length-400)/2,length-500],blinkSteps=[[0,.03]];
+ for(let group=0;group<3;group++)for(let i=0;i<3;i++){
+  blinkSteps.push([starts[group]+i*120,1]);
+  // Hold the final flash on, merging it into the normal steady bulbs.
+  if(group!==2||i!==2)blinkSteps.push([starts[group]+i*120+60,.03]);
+ }
+ blinkSteps.push([length,1]);
+ return blinkSteps.map(([ms,opacity])=>({offset:ms/length,opacity,easing:'steps(1,end)'}));
 }
-blinkSteps.push([1600,1]);
-export const APPROACH_BLINKS=blinkSteps.map(([ms,opacity])=>({offset:ms/1600,opacity,easing:'steps(1,end)'}));
 
 // Equal spacing along each edge, with a shared target pitch and unique corners.
 export function lampPositions(width,height,diameter,inset){
