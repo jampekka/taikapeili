@@ -132,8 +132,19 @@ function trigger(face){
 function drawTracking(faces){
  const c=$('tracking');c.hidden=!debug||!config.boxes||run.state==='reveal';if(c.hidden)return;
  const r=glass.getBoundingClientRect(),w=Math.round(r.width),h=Math.round(r.height);if(c.width!==w||c.height!==h){c.width=w;c.height=h}
- const t=c.getContext('2d');t.clearRect(0,0,w,h);t.strokeStyle='#9dffb0';t.lineWidth=2;
- for(const f of faces){const left=f.center.x-f.width/2,top=f.center.y-f.height/2;const corners=[{x:left,y:top},{x:left+f.width,y:top},{x:left+f.width,y:top+f.height},{x:left,y:top+f.height}];t.beginPath();for(let side=0;side<4;side++)for(let i=0;i<8;i++){const a=corners[side],b=corners[(side+1)%4],p=renderer.projectPoint({x:a.x+(b.x-a.x)*i/8,y:a.y+(b.y-a.y)*i/8});if(!side&&!i)t.moveTo(p.x*w,p.y*h);else t.lineTo(p.x*w,p.y*h)}t.closePath();t.stroke();
+ const t=c.getContext('2d');t.clearRect(0,0,w,h);
+ function outline(center,width,height){
+  const left=center.x-width/2,top=center.y-height/2,corners=[{x:left,y:top},{x:left+width,y:top},{x:left+width,y:top+height},{x:left,y:top+height}];
+  t.beginPath();for(let side=0;side<4;side++)for(let i=0;i<8;i++){const a=corners[side],b=corners[(side+1)%4],p=renderer.projectPoint({x:a.x+(b.x-a.x)*i/8,y:a.y+(b.y-a.y)*i/8});if(!side&&!i)t.moveTo(p.x*w,p.y*h);else t.lineTo(p.x*w,p.y*h)}t.closePath();t.stroke();
+ }
+ // Dashed amber = required width. Its height is only a visual guide.
+ const face=faces[0],center=face?.center||{x:.5,y:.5},guideHeight=face?face.height*config.closeWidth/face.width:config.closeWidth*w/h*1.3;
+ t.strokeStyle='#ffc36a';t.lineWidth=1.5;t.setLineDash([7,5]);outline(center,config.closeWidth,guideHeight);t.setLineDash([]);
+ const label=renderer.projectPoint({x:center.x-config.closeWidth/2,y:center.y-guideHeight/2});
+ t.font='12px system-ui';t.fillStyle='#ffc36a';t.fillText(`Close: ${Math.round(config.closeWidth*100)}% of view width`,Math.max(8,Math.min(w-190,label.x*w)),Math.max(18,label.y*h-8));
+ t.strokeStyle='#9dffb0';t.lineWidth=2;
+ for(const f of faces){
+  outline(f.center,f.width,f.height);
   if(f.eyes?.length===2){t.strokeStyle='#ffdf65';t.fillStyle='#ffdf65';for(const eye of f.eyes){const p=renderer.projectPoint(eye),x=p.x*w,y=p.y*h;t.beginPath();t.arc(x,y,4,0,Math.PI*2);t.stroke();t.beginPath();t.moveTo(x-9,y);t.lineTo(x+9,y);t.moveTo(x,y-9);t.lineTo(x,y+9);t.stroke()}t.strokeStyle='#9dffb0'}
  }
 }
@@ -182,18 +193,22 @@ async function unlock(fullscreen=false){
 }
 $('startMirror').addEventListener('click',()=>unlock(true));
 $('enable').addEventListener('click',()=>{stop();updateAudioPrompt()});$('retry').addEventListener('click',()=>{$('runError').hidden=true;run.reset()});
+function showCloseWidth(){
+ const percent=Math.round(config.closeWidth*100);$('closeWidthValue').textContent=percent+'%';$('closeWidth').setAttribute('aria-valuetext',percent+'% of mirror width');
+}
 function persistSettings(){
  const saved=saveSettings(config);$('settingsStatus').textContent=saved?'Saved automatically in this browser.':'Browser storage unavailable; changes last until reload.';
 }
 if(debug){
  for(const [id,key] of [['volume','volume'],['morph','morph'],['closeWidth','closeWidth']])$(id).value=Math.round(config[key]*100);
+ showCloseWidth();
  $('showTexts').checked=config.texts;$('boxes').checked=config.boxes;$('ending').value=config.ending;$('endingCopy').textContent=ENDINGS[config.ending];
  $('ending').addEventListener('change',e=>{config.ending=e.target.value;$('endingCopy').textContent=ENDINGS[config.ending];persistSettings()});
  $('testEnding').addEventListener('click',async()=>{await unlock();stats.sound=audio.warning(config.ending);updateDebug()});
  $('debug').hidden=audio.status!=='running';$('apiModel').value=DEFAULT_MODEL;
  $('providerForm').addEventListener('submit',e=>{e.preventDefault();if(run.state!=='idle'){log('Finish the current run before changing provider');return}if(!configured){log('Server provider unavailable');return}config.provider='server';config.model=$('apiModel').value||DEFAULT_MODEL;$('providerStatus').textContent=`Remote · ${config.model}`;updateDebug()});
  $('useLocal').addEventListener('click',()=>{if(run.state!=='idle')return;config.provider='local';$('providerStatus').textContent='Dummy · no API calls';updateDebug()});
- $('closeWidth').addEventListener('input',e=>{config.closeWidth=Number(e.target.value)/100;persistSettings();updateDebug()});
+ $('closeWidth').addEventListener('input',e=>{config.closeWidth=Number(e.target.value)/100;showCloseWidth();persistSettings();drawTracking(trackedFaces);updateDebug()});
  $('morph').addEventListener('input',e=>{config.morph=Number(e.target.value)/100;renderer.strength=config.morph;persistSettings()});
  $('volume').addEventListener('input',e=>{config.volume=Number(e.target.value)/100;audio.setVolume(config.volume);persistSettings()});
  $('boxes').addEventListener('change',e=>{config.boxes=e.target.checked;persistSettings();drawTracking(trackedFaces)});
