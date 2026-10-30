@@ -44,12 +44,12 @@ function playActiveCue(){
 function cue(text,id,duration){activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;log(text);playActiveCue()}
 async function approach(signal){
  log('Approach · 2s lead-in');await delay(startDelayMs,signal);
- let speakingUntil=0,nextPromptAt=0;
+ let speakingUntil=0,nextPromptAt=0,prompted=false;
  while(true){
   const now=performance.now(),close=run.facePresent&&lastFace?.width>=config.closeWidth;
-  if(close&&now>=speakingUntil)break;
-  if(!close&&run.facePresent&&now>=nextPromptAt){
-   const duration=Math.ceil(audio.duration('come',2)*1000);cue('Tule lähemmäksi.','come',duration);
+  if(close&&prompted&&now>=speakingUntil)break;
+  if((!close||!prompted)&&run.facePresent&&now>=nextPromptAt){
+   const duration=Math.ceil(audio.duration('come',2)*1000);cue('Tule lähemmäksi.','come',duration);prompted=true;
    speakingUntil=now+duration;nextPromptAt=speakingUntil+1200;
   }
   await delay(100,signal);

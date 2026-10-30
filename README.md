@@ -4,7 +4,7 @@ Dummy mode is the default on every page load. It makes no image API calls. The U
 
 ## One run
 
-`assets/run.js` owns the lifecycle. Face presence while armed starts a two-second lead-in, then repeats “Tule lähemmäksi.” while the face is below 45% of the mirrored viewport width, leaving 1.2 seconds between recordings. Once close enough, the current prompt finishes and the secret/look sequence runs once. Distance does not gate it again after that point. Debug exposes the threshold for device tuning. One second without a face cancels the sequence. Three continuous seconds without a face rearm it; a continuously present face cannot repeat it. Position and size do not gate the sequence.
+`assets/run.js` owns the lifecycle. Face presence while armed starts a two-second lead-in, then plays “Tule lähemmäksi.” at least once and repeats it while the face is below 45% of the mirrored viewport width, leaving 1.2 seconds between recordings. Once close enough, the current prompt finishes and the secret/look sequence runs once. Distance does not gate it again after that point. Debug exposes the threshold for device tuning. One second without a face cancels the sequence. Three continuous seconds without a face rearm it; a continuously present face cannot repeat it. Position and size do not gate the sequence.
 
 ## Tracking and reveal
 
