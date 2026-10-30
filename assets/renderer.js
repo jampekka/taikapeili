@@ -1,7 +1,7 @@
 const vertex=`attribute vec2 position;varying vec2 uv;void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
 const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;
-vec2 warp(vec2 p,float channel){vec2 q=(p-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirror>.5)q.x=1.-q.x;vec2 d=q-vec2(.5+.08*sin(time*.31),.48+.07*cos(time*.27));float radius=length(d);q+=d*sin(radius*13.-time*1.9+channel*.8)*power*.65;q.x+=sin(q.y*9.+time*.8+channel*.26)*power*.45+sin(q.y*24.-time*1.3+channel)*power*.12;q.y+=sin(q.x*11.-time*.6+channel*.33)*power*.4;return q;}
-vec4 sampleAt(vec2 p){if(p.x<0.||p.y<0.||p.x>1.||p.y>1.)return vec4(0.);return texture2D(image,p);}
+vec2 warp(vec2 p,float channel){vec2 q=(p-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirror>.5)q.x=1.-q.x;vec2 d=q-vec2(.5+.08*sin(time*.31),.48+.07*cos(time*.27));float radius=length(d);vec2 edge=2.*p-1.;float falloff=smoothstep(0.,.65,max(0.,(1.-edge.x*edge.x)*(1.-edge.y*edge.y)));float amount=power*falloff;q+=d*sin(radius*13.-time*1.9+channel*.8)*amount*.65;q.x+=sin(q.y*9.+time*.8+channel*.26)*amount*.45+sin(q.y*24.-time*1.3+channel)*amount*.12;q.y+=sin(q.x*11.-time*.6+channel*.33)*amount*.4;return q;}
+vec4 sampleAt(vec2 p){if(scare>.5&&(p.x<0.||p.y<0.||p.x>1.||p.y>1.))return vec4(0.);return texture2D(image,clamp(p,vec2(0.),vec2(1.)));}
 void main(){vec4 r=sampleAt(warp(uv,-1.)),g=sampleAt(warp(uv,0.)),b=sampleAt(warp(uv,1.));vec3 rgb=vec3(r.r*r.a,g.g*g.a,b.b*b.a);gl_FragColor=vec4(rgb,1.);}`;
 export class MirrorRenderer {
  constructor(canvas,{onTick=()=>{},reduced=false}={}){this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.waiting=false;this.lastDraw=0;this.strength=.7;
@@ -24,7 +24,15 @@ export class MirrorRenderer {
  }
  drawCPU(image,w,h,cover,zoom,power,time,mirror){
   const scale=Math.min(1,320/Math.max(w,h)),sw=Math.max(1,Math.round(w*scale)),sh=Math.max(1,Math.round(h*scale));if(this.scratch.width!==sw||this.scratch.height!==sh){this.scratch.width=sw;this.scratch.height=sh}const ctx=this.sctx;ctx.clearRect(0,0,sw,sh);const iw=image.videoWidth||image.naturalWidth||image.width,ih=image.videoHeight||image.naturalHeight||image.height;ctx.drawImage(image,0,0,iw,ih,0,0,sw,sh);const input=ctx.getImageData(0,0,sw,sh),out=ctx.createImageData(sw,sh),src=input.data,dst=out.data;
-  for(let y=0;y<sh;y++){const py=((y/sh-.5)/zoom)*cover[1]+.5;for(let x=0;x<sw;x++){let px=((x/sw-.5)/zoom)*cover[0]+.5;if(mirror)px=1-px;const index=(y*sw+x)*4;for(let c=0;c<3;c++){const channel=c-1;const xx=px+Math.sin(py*9+time*.8+channel*.26)*power*.45+Math.sin(py*24-time*1.3+channel)*power*.12;const yy=py+Math.sin(px*11-time*.6+channel*.33)*power*.4;const sx=Math.floor(xx*sw),sy=Math.floor(yy*sh);if(sx>=0&&sx<sw&&sy>=0&&sy<sh){const i=(sy*sw+sx)*4;dst[index+c]=src[i+c]*src[i+3]/255}}dst[index+3]=255}}
+  for(let y=0;y<sh;y++){const v=(y+.5)/sh,py=((v-.5)/zoom)*cover[1]+.5;for(let x=0;x<sw;x++){const u=(x+.5)/sw;let px=((u-.5)/zoom)*cover[0]+.5;if(mirror)px=1-px;
+   const edgeX=2*u-1,edgeY=2*v-1,t=Math.min(1,Math.max(0,(1-edgeX*edgeX)*(1-edgeY*edgeY))/.65),amount=power*t*t*(3-2*t),index=(y*sw+x)*4;
+   for(let c=0;c<3;c++){const channel=c-1,dx=px-(.5+.08*Math.sin(time*.31)),dy=py-(.48+.07*Math.cos(time*.27)),wave=Math.sin(Math.hypot(dx,dy)*13-time*1.9+channel*.8)*amount*.65;
+    let xx=px+dx*wave,yy=py+dy*wave;
+    xx+=Math.sin(yy*9+time*.8+channel*.26)*amount*.45+Math.sin(yy*24-time*1.3+channel)*amount*.12;
+    yy+=Math.sin(xx*11-time*.6+channel*.33)*amount*.4;
+    if(mirror){xx=Math.max(0,Math.min(1,xx));yy=Math.max(0,Math.min(1,yy))}
+    if(xx>=0&&xx<=1&&yy>=0&&yy<=1){const sx=Math.min(sw-1,Math.floor(xx*sw)),sy=Math.min(sh-1,Math.floor(yy*sh)),i=(sy*sw+sx)*4;dst[index+c]=src[i+c]*src[i+3]/255}
+   }dst[index+3]=255}}
   ctx.putImageData(out,0,0);this.ctx.drawImage(this.scratch,0,0,w,h);
  }
 }

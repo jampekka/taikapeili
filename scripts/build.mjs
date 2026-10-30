@@ -1,7 +1,7 @@
 import {readFile,writeFile,readdir,mkdir,rm} from 'node:fs/promises';
 import {resolve,relative,extname} from 'node:path';
 const root=resolve(import.meta.dirname,'..'),assets={};
-const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json','.css':'text/css; charset=utf-8','.jpg':'image/jpeg','.png':'image/png','.txt':'text/plain; charset=utf-8'};
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json','.css':'text/css; charset=utf-8','.jpg':'image/jpeg','.png':'image/png','.mp3':'audio/mpeg','.wav':'audio/wav','.txt':'text/plain; charset=utf-8'};
 async function collect(dir){for(const entry of await readdir(dir,{withFileTypes:true})){const path=resolve(dir,entry.name);if(entry.isDirectory())await collect(path);else{const bytes=await readFile(path);assets['/'+relative(resolve(root,'assets'),path).replaceAll('\\','/')]=[types[extname(path)]||'application/octet-stream',bytes.toString('base64')]}}}
 await collect(resolve(root,'assets'));
 const provider=(await readFile(resolve(root,'assets/provider.js'),'utf8')).replace(/^export /gm,'');

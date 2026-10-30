@@ -34,3 +34,9 @@ export function applyPersonMask(image,mask){
  ctx.globalCompositeOperation='destination-in';ctx.drawImage(feather,0,0);ctx.globalCompositeOperation='source-over';return canvas;
 }
 export function faceFromPerson(person){const b=person.bounds;return {eyes:[{x:b.x+b.width*.38,y:b.y+b.height*.19},{x:b.x+b.width*.62,y:b.y+b.height*.19}],center:{x:b.x+b.width*.5,y:b.y+b.height*.5},width:b.width,height:b.height,score:person.coverage,person:true}}
+
+// A failed/empty body mask must never veto a real face detection.
+export function combinePresence(person,faces=[]){
+ if(faces.length)return faces;
+ return person?.present?[faceFromPerson(person)]:[];
+}
