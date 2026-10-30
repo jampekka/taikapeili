@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import worker from '../dist/server/index.js';
-const env={OPENROUTER_API_KEY:'sentinel-server-key',IMAGE_MODEL:'google/gemini-3.1-flash-lite-image'};
+const env={OPENROUTER_API_KEY:'sentinel-server-key',OPENAI_API_KEY:'sentinel-openai-key'};
 const origin='https://mirror.test';
 const make=(path,options={})=>new Request(origin+path,options);
-const config=await worker.fetch(make('/api/mirror/config'),env);const configText=await config.text();assert.equal(JSON.parse(configText).configured,true);assert.equal(configText.includes(env.OPENROUTER_API_KEY),false);
+const config=await worker.fetch(make('/api/mirror/config'),env);const configText=await config.text();assert.equal(JSON.parse(configText).configured,false);assert.equal(configText.includes(env.OPENROUTER_API_KEY),false);
 const script=await worker.fetch(make('/app.js'),env);assert.match(script.headers.get('content-type'),/javascript/);assert.equal((await script.text()).includes(env.OPENROUTER_API_KEY),false);
 assert.equal((await worker.fetch(make('/'),env)).status,200);
 const warningAudio=await worker.fetch(make('/audio/warning.mp3'),env);assert.equal(warningAudio.status,200);assert.ok((await warningAudio.arrayBuffer()).byteLength>1000);
@@ -12,17 +12,17 @@ const secretAudio=await worker.fetch(make('/audio/secret.mp3'),env);assert.equal
 assert.equal((await worker.fetch(make('/models/face_landmarker.task'),env)).status,200);
 const wasm=await worker.fetch(make('/vendor/mediapipe/wasm/vision_wasm_internal.wasm'),env);assert.equal(wasm.headers.get('content-type'),'application/wasm');assert.deepEqual([...new Uint8Array(await wasm.arrayBuffer()).slice(0,4)],[0,97,115,109]);
 assert.equal((await worker.fetch(make('/face-worker.js'),env)).status,200);
-const body={imageData:'data:image/jpeg;base64,ZmFrZQ==',model:env.IMAGE_MODEL,effect:'zombie',ratio:.75};
-const post=(overrides={})=>make('/api/mirror/edit',{method:'POST',headers:{'content-type':'application/json',origin,...overrides.headers},body:JSON.stringify({...body,...overrides.body})});
-assert.equal((await worker.fetch(post(),{})).status,503);
-assert.equal((await worker.fetch(post({headers:{origin:'https://unrelated.test'}}),env)).status,403);
-assert.equal((await worker.fetch(post({body:{model:'unknown/model'}}),env)).status,400);
-assert.equal((await worker.fetch(post({body:{imageData:'bad'}}),env)).status,400);
-const originalFetch=globalThis.fetch;let upstream;
+const originalFetch=globalThis.fetch;let requests=0;
 try{
- globalThis.fetch=async(url,options)=>{upstream={url,options};return new Response(JSON.stringify({data:[{b64_json:'aGVsbG8=',media_type:'image/png'}],usage:{cost:.01}}),{status:200})};
- const response=await worker.fetch(post(),env);assert.equal(response.status,200);const text=await response.text();assert.equal(text.includes(env.OPENROUTER_API_KEY),false);assert.equal(JSON.parse(text).cost,.01);assert.equal(upstream.options.headers.Authorization,'Bearer '+env.OPENROUTER_API_KEY);
- globalThis.fetch=async()=>new Response(JSON.stringify({error:{message:'Invalid '+env.OPENROUTER_API_KEY}}),{status:401});
- const failed=await worker.fetch(post(),env);assert.equal(failed.status,422);assert.equal((await failed.text()).includes(env.OPENROUTER_API_KEY),false);
+ globalThis.fetch=async()=>{requests++;throw new Error('Disabled endpoint must never contact a provider')};
+ const forbiddenEnv=new Proxy(env,{get(){throw new Error('Disabled endpoint must never read runtime credentials')}});
+ for(const runtime of [{},env,forbiddenEnv]){
+  const configResponse=await worker.fetch(make('/api/mirror/config'),runtime);assert.deepEqual(await configResponse.json(),{configured:false,provider:'local'});
+  for(const method of ['GET','POST','PUT','DELETE']){
+   const response=await worker.fetch(make('/api/mirror/edit',{method,headers:{'content-type':'application/json',origin},...(method==='POST'?{body:JSON.stringify({imageData:'data:image/jpeg;base64,ZmFrZQ==',model:'gpt-image-2.5-flare'})}:{})}),runtime);
+   assert.equal(response.status,410);assert.match((await response.json()).error,/disabled/);
+  }
+ }
+ assert.equal(requests,0);
 }finally{globalThis.fetch=originalFetch}
-console.log('PASS: embedded page/scripts/models, secret-free config, server authentication header, image edit, origin/format/model validation, redacted upstream errors');
+console.log('PASS: bundled page/audio/models; image endpoint always disabled, no credential reads and no upstream requests');
