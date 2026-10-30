@@ -49,3 +49,14 @@ console.log('PASS: dummy captures only after cues, reads newest frame, and skips
  const shown=deferred(),laugh=deferred();let laughs=0;const r=new MirrorRun();r.start({generate:()=>1,sequence:()=>{},reveal:()=>shown.promise,afterReveal:()=>{laughs++;return laugh.promise}});await flush();assert.equal(r.state,'reveal');assert.equal(laughs,0);shown.resolve();await flush();assert.equal(r.state,'after');assert.equal(laughs,1);assert.equal(r.start({}),false);laugh.resolve();await flush();assert.equal(r.state,'finished');
 }
 console.log('PASS: 1s cancellation, 3s absence rearm, brief-loss recovery, no repeated run, post-reveal completion ordering');
+{
+ const laugh=deferred();let instructions=0,signal;
+ const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:s=>{instructions++;signal=s;return new Promise(resolve=>s.addEventListener('abort',resolve,{once:true}))}});
+ await flush();assert.equal(r.state,'after');assert.equal(instructions,0,'Instruction waits until laugh finishes');laugh.resolve();await flush();assert.equal(r.state,'instruction');assert.equal(instructions,1);
+ r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'instruction','Brief misses do not stop the warning');r.observeFace(false,1100);await flush();assert.equal(r.state,'finished');assert.equal(signal.aborted,true);assert.equal(instructions,1);r.observeFace(true,1200);assert.equal(r.state,'finished','Returning face does not replay warning');
+ r.observeFace(false,1300);r.observeFace(false,4300);assert.equal(r.state,'idle');
+}
+{
+ const laugh=deferred();const r=new MirrorRun();r.observeFace(true,0);r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},afterReveal:()=>laugh.promise,instruction:()=>assert.fail('No warning to an absent viewer')});await flush();r.observeFace(false,100);laugh.resolve();await flush();assert.equal(r.state,'finished');
+}
+console.log('PASS: stern instruction after laugh, one playback, presence-controlled hold, absence cancellation, no replay, skip if viewer already left');
