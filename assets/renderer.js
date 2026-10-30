@@ -1,0 +1,30 @@
+const vertex=`attribute vec2 position;varying vec2 uv;void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
+const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;
+vec2 warp(vec2 p,float channel){vec2 q=(p-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirror>.5)q.x=1.-q.x;vec2 d=q-vec2(.5+.08*sin(time*.31),.48+.07*cos(time*.27));float radius=length(d);q+=d*sin(radius*13.-time*1.9+channel*.8)*power*.65;q.x+=sin(q.y*9.+time*.8+channel*.26)*power*.45+sin(q.y*24.-time*1.3+channel)*power*.12;q.y+=sin(q.x*11.-time*.6+channel*.33)*power*.4;return q;}
+vec4 sampleAt(vec2 p){if(p.x<0.||p.y<0.||p.x>1.||p.y>1.)return vec4(0.);return texture2D(image,p);}
+void main(){vec4 r=sampleAt(warp(uv,-1.)),g=sampleAt(warp(uv,0.)),b=sampleAt(warp(uv,1.));vec3 rgb=vec3(r.r*r.a,g.g*g.a,b.b*b.a);gl_FragColor=vec4(rgb,1.);}`;
+export class MirrorRenderer {
+ constructor(canvas,{onTick=()=>{},reduced=false}={}){this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.waiting=false;this.lastDraw=0;this.strength=.7;
+  try{this.gl=canvas.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false})}catch{}
+  if(this.gl){try{this.initGL();this.backend='WebGL RGB warp'}catch{this.gl=null}}
+  if(!this.gl){const replacement=document.createElement('canvas');replacement.id=canvas.id;replacement.className=canvas.className;canvas.replaceWith(replacement);this.canvas=replacement;this.ctx=replacement.getContext('2d',{alpha:false});this.scratch=document.createElement('canvas');this.sctx=this.scratch.getContext('2d',{willReadFrequently:true});this.backend='Canvas RGB warp'}
+ }
+ initGL(){const gl=this.gl;const compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw new Error('Shader unavailable');return shader};const program=gl.createProgram();gl.attachShader(program,compile(gl.VERTEX_SHADER,vertex));gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error('Shader link failed');gl.useProgram(program);this.program=program;const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);const pos=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(pos);gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);this.uniforms={};for(const n of ['time','zoom','power','mirror','scare','cover'])this.uniforms[n]=gl.getUniformLocation(program,n);this.texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true)}
+ start(source){this.source=source;if(this.running)return;this.running=true;this.tick(performance.now())}
+ stop(){this.running=false;cancelAnimationFrame(this.raf)}
+ show(image,duration=1600){this.scareImage=image;this.scareAt=performance.now();this.until=this.scareAt+duration}
+ tick(now){if(!this.running)return;this.onTick(now);if(now-this.lastDraw>=(this.gl?32:80)){this.lastDraw=now;this.draw(now)}this.raf=requestAnimationFrame(t=>this.tick(t))}
+ draw(now){const active=now<this.until&&this.scareImage;const image=active?this.scareImage:this.source;if(!image)return;const iw=image.videoWidth||image.naturalWidth||image.width,ih=image.videoHeight||image.naturalHeight||image.height;if(!iw||!ih)return;
+  const rect=this.canvas.getBoundingClientRect(),ratio=rect.width/Math.max(1,rect.height);const h=Math.min(this.gl?1080:320,Math.round((this.gl?1280:320)/ratio)),w=Math.round(h*ratio);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h}
+  const elapsed=(now-this.scareAt)/1000;let zoom=1;if(active&&!this.reduced)zoom=elapsed<.145?.001+1.07*(1-Math.pow(1-elapsed/.145,4)):1+.055*Math.sin(elapsed*23)*Math.exp(-elapsed*.7)+.023*Math.sin(elapsed*10);
+  const power=(this.reduced?.006:(active?.065:this.waiting?.05:.025))*this.strength;
+  const imageRatio=iw/ih,cover=imageRatio>ratio?[ratio/imageRatio,1]:[1,imageRatio/ratio];
+  if(this.gl){const gl=this.gl;gl.viewport(0,0,w,h);gl.useProgram(this.program);gl.bindTexture(gl.TEXTURE_2D,this.texture);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)}catch{return}for(const [n,v] of Object.entries({time:now/1000,zoom,power,mirror:active?0:1,scare:active?1:0}))gl.uniform1f(this.uniforms[n],v);gl.uniform2f(this.uniforms.cover,...cover);gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}
+  else{this.drawCPU(image,w,h,cover,zoom,power,now/1000,!active)}
+ }
+ drawCPU(image,w,h,cover,zoom,power,time,mirror){
+  const scale=Math.min(1,320/Math.max(w,h)),sw=Math.max(1,Math.round(w*scale)),sh=Math.max(1,Math.round(h*scale));if(this.scratch.width!==sw||this.scratch.height!==sh){this.scratch.width=sw;this.scratch.height=sh}const ctx=this.sctx;ctx.clearRect(0,0,sw,sh);const iw=image.videoWidth||image.naturalWidth||image.width,ih=image.videoHeight||image.naturalHeight||image.height;ctx.drawImage(image,0,0,iw,ih,0,0,sw,sh);const input=ctx.getImageData(0,0,sw,sh),out=ctx.createImageData(sw,sh),src=input.data,dst=out.data;
+  for(let y=0;y<sh;y++){const py=((y/sh-.5)/zoom)*cover[1]+.5;for(let x=0;x<sw;x++){let px=((x/sw-.5)/zoom)*cover[0]+.5;if(mirror)px=1-px;const index=(y*sw+x)*4;for(let c=0;c<3;c++){const channel=c-1;const xx=px+Math.sin(py*9+time*.8+channel*.26)*power*.45+Math.sin(py*24-time*1.3+channel)*power*.12;const yy=py+Math.sin(px*11-time*.6+channel*.33)*power*.4;const sx=Math.floor(xx*sw),sy=Math.floor(yy*sh);if(sx>=0&&sx<sw&&sy>=0&&sy<sh){const i=(sy*sw+sx)*4;dst[index+c]=src[i+c]*src[i+3]/255}}dst[index+3]=255}}
+  ctx.putImageData(out,0,0);this.ctx.drawImage(this.scratch,0,0,w,h);
+ }
+}

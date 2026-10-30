@@ -26,8 +26,9 @@ export default {
    if(typeof body.imageData!=='string'||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(body.imageData))return responseJSON({error:'Invalid captured image'},400);
    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),80000);activeEdits.add(user);
    try{
+    const started=Date.now();
     const result=await requestImage({apiKey:env.OPENROUTER_API_KEY,imageData:body.imageData,model,effect:['zombie','ghost','aged'].includes(body.effect)?body.effect:'zombie',ratio:Math.max(.25,Math.min(4,Number(body.ratio)||1)),resolution:['512','1K'].includes(body.resolution)?body.resolution:undefined,signal:controller.signal});
-    return responseJSON({dataUrl:result.dataUrl,cost:result.cost,model});
+    return responseJSON({dataUrl:result.dataUrl,cost:result.cost,model,providerMs:Date.now()-started});
    }catch(error){const message=safeError(error,env.OPENROUTER_API_KEY);const status=controller.signal.aborted?504:/OpenRouter (400|401|402|403|404):/.test(message)?422:502;return responseJSON({error:controller.signal.aborted?'Image provider timed out':message},status)}finally{clearTimeout(timer);activeEdits.delete(user)}
   }
   if(url.pathname.startsWith('/api/'))return responseJSON({error:'Not found'},404);

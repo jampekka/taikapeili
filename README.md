@@ -1,52 +1,69 @@
-# The Other Side — Halloween mirror
+# The Other Side — automatic Halloween mirror
 
-A buildless, edge-to-edge camera mirror. A small Worker serves the assets and the protected image-edit endpoint over HTTPS. Source assets are in `assets/`; `node scripts/build.mjs` embeds them into `dist/server/index.js`. Fourteen large white bulb overlays provide screen illumination (twelve on narrow phones); there is no solid frame or normal-use interface. The camera permission/retry UI disappears when ready. A small “Tap once for sound” prompt disappears after a page gesture unlocks browser audio. Visual reveals work without touching the page.
+The normal interface is only the live camera and vanity bulbs. Camera access is requested at startup; a page gesture unlocks horror audio once. Source assets are in `assets/`. A dependency-free build embeds them and the Worker into `dist/server/index.js`; `node scripts/build.mjs` builds it, and `node scripts/validate-artifact.mjs` validates the artifact. Hosting and access remain owner-private through Sites.
 
-## Automatic jump scare
+## Detection and immediate scares
 
-- Tiny Face Detector and the tiny 68-point landmark model run locally on sampled camera frames. The first qualifying detection captures immediately: no stable-face wait, countdown or artificial dummy-render delay.
-- `transformSnapshot` (`assets/effects.js`) produces the local dummy zombie effect, aligned to detected eye position, size and rotation. It can be replaced by the real OpenRouter image provider below. The live camera continues while editing.
-- When the result is ready, it snaps in with a short zoom/jolt and a randomized synthesized shriek, orchestral stab or monster growl. The original live mirror returns after approximately 1.4 seconds, then another capture is allowed after six seconds.
-- A sustained face loss or clearly different visitor position invalidates pending work. Normal movement during a slow model request is allowed. Hidden pages stop the camera and cancel work; visible pages resume. Screen wake lock is requested where supported.
-- WebGL accelerates detection when available; CPU is the fallback. `?backend=cpu` forces CPU for diagnostics. Face models and scripts are served locally; there are no runtime CDN dependencies.
-- Reduced-motion preferences suppress the zoom/jolt. Sound is synthesized with Web Audio, with a master volume and dynamics compressor. No microphone, audio recording, external sound files or service is needed.
+A small BodyPix MobileNetV1 0.50 model with 1-byte weights (~0.6MB) detects people and supplies foreground masks. It reuses the existing TensorFlow backend, preferring WebGL and falling back to CPU. Detection operates on a cached camera frame with a maximum edge of 160px, not on the warped display. Nearly unchanged frames reuse the mask for up to 1.5 seconds; observed motion forces another inference. Tiny masks below 3.5% coverage do not count as a person. Presence inference pauses during the mirror's own blackout and a short exposure-recovery interval, preventing false departure events when the bulbs turn off. Face detection is only needed for dummy-effect alignment or as a fallback if person segmentation cannot initialize.
 
-## Debug view
+On the first person detection, a preloaded fictional horror cutout appears immediately. At the same time, the app captures a fresh frame and requests the visitor's personalized edit. The camera continues to warp while the model works. The personalized result appears as soon as ready and becomes the in-memory cache for later scares. Repeat scares during the same visit use that cached personalized image rather than making repeated API calls. A new visit begins after sustained person absence. There is no identity recognition: a continuous handover without an empty scene may retain the prior cache until presence resets.
 
-`?debug=1` enables a translucent panel and optional face boxes/eye dots. It shows source resolution, detector/backend status, face confidence, scan timing, provider/request progress, render latency, reveal count, audio status, API request count, reported API cost and redacted recent errors/events. Debug-only controls test sounds, trigger a reveal, select a sound, adjust volume and configure the image provider. Normal mode has none of these controls.
+The initial cached stock scare and any previous cached image are not a newly generated likeness of the current visitor. This deliberately separates an immediate jump scare from the slower personalized edit. The optional debug view distinguishes cached and fresh scares.
 
-Other development query parameters:
+## Background removal and animation
 
-- `?test=portrait` feeds the included sample portrait through the real crop/detection/landmark/reveal pipeline without a physical camera. `?test=empty` supplies a blank scene. No visitor action is needed to run either fixture.
-- `?mute=1` suppresses audio for testing.
-- `?effect=ghost` or `?effect=aged` selects alternative effects without adding visible normal-use controls.
-- Combine parameters with `&`, e.g. `?test=portrait&debug=1&mute=1&backend=cpu`.
+The foreground mask from the captured frame is applied to the edited image, with softened alpha edges. The image prompt additionally requests an isolated person against pure black. During reveals, the camera background is replaced by black and all vanity bulbs switch off.
 
-## OpenRouter image editing
+The cutout zooms from approximately 0.001 scale to full size in 145ms, then oscillates in scale while independent RGB deformations ripple across it. A normal reveal lasts about 1.6 seconds; repeats wait six seconds. A shader continuously warps the entire live view with independent red, green and blue displacement, stronger while a fresh edit is pending. WebGL is preferred; a lower-resolution Canvas RGB-warp fallback runs without GPU support. Reduced-motion preferences suppress the rapid zoom and reduce deformation.
 
-The published Site uses a server-side `OPENROUTER_API_KEY` secret and defaults to the configured image provider automatically. `IMAGE_MODEL` sets the initial model; the default is `google/gemini-3.1-flash-lite-image` (Nano Banana 2 Lite), verified against OpenRouter's live catalog. The browser first reads `/api/mirror/config`, then posts captured JPEGs to `/api/mirror/edit`. The Worker calls `POST https://openrouter.ai/api/v1/images` with an editing prompt and `input_references`, then returns edited image bytes without exposing the key.
+Horror sounds are synthesized locally using Web Audio: shriek, orchestral stab and monster growl. They are randomized without immediately repeating the same variant. A master volume and compressor limit peaks. Audio requires one user gesture under browser autoplay rules; visual scares work before it is unlocked. No microphone permission, external sound files or audio service is used.
 
-In `?debug=1`, the key status is only “configured on server”. **Use image model** selects one of the supported Gemini image models; **Use dummy** switches to the local effect for this tab. Sound, volume, model and provider choices are stored in the tab's `sessionStorage`; no API key is stored there or in the browser bundle. A fresh tab defaults to the real server provider when configured. Local preview has no production secrets and defaults to dummy mode.
+## OpenRouter
 
-With the server model enabled, automatic face snapshots go to OpenRouter and its selected model provider, and requests are billed. The live camera remains visible until the edited result arrives; image and sound then appear together. The server handles only one in-flight request per visitor per isolate, validates image size/type and the allowed model, rejects cross-origin browser writes, and relies on the confirmed owner-private Sites dispatch for access control. Sites service access is supported for diagnostics. Secrets are never returned in config, image responses or errors.
+The server holds `OPENROUTER_API_KEY`; it never reaches browser code, URLs, config responses or logs. `IMAGE_MODEL` selects the production default, currently `black-forest-labs/flux.2-klein-4b`. The browser reads `/api/mirror/config` and sends a captured JPEG to `/api/mirror/edit`. Uploads are resized to at most 512px. The Worker calls `POST https://openrouter.ai/api/v1/images` with `input_references` and an edit prompt, and returns the image and reported cost. The endpoint validates model/type/size, rejects cross-origin browser requests, and relies on the existing owner-private Sites access boundary. One request per visitor per isolate is allowed at a time. Production secrets are absent from local preview, which uses dummy effects.
 
-Face loss, page hiding, source changes or provider changes abort the local request and discard stale responses. Aborting HTTP does not guarantee cancellation or non-billing upstream. Requests time out after 80 seconds on the server (90 in the browser). Most failures back off ten seconds; configuration/auth/balance errors pause until settings are reapplied. Errors are visible in debug; no silent dummy fallback disguises a failed model request.
+Model profiles available in debug:
 
-References: https://openrouter.ai/blog/tutorials/nano-banana/ and https://openrouter.ai/api/v1/images/models .
+- FLUX.2 Klein 4B: native output size, JPEG output. No unsupported resolution option is sent.
+- Nano Banana 2 Lite: 1K output only.
+- Nano Banana 2: 512px output by default, or 1K.
+- Original Nano Banana: native output size.
 
-## Validation
+Model tests on the same fictional imagegen portrait, with 512px uploads, on 2026-10-30:
 
-- `node --check assets/app.js` (also `assets/audio.js`, `cycle.js`, `effects.js`, `provider.js`).
-- `node tests/cycle.test.mjs`: empty scenes, immediate first capture, one in-flight capture, reveal timing, repeat, departure, normal movement, major position changes, reset, error backoff.
-- `node tests/provider.test.mjs`: reference-image request structure, model options/aspect ratio, image decoding, costs, authentication header, key redaction, HTTP and network failures. Uses mocked HTTP; no paid requests.
-- Browser QA: scan 1 triggers reveal 1; repeated automatic reveals; debug controls/overlay; audio unlock and all three sound variants; server-provider status and unavailable-provider handling. End-to-end paid-model checks use only the AI-generated test portrait.
-- `node scripts/validate-artifact.mjs` and `node tests/worker.test.mjs`: Worker artifact, embedded assets, secret-free configuration, server authentication, successful image responses, origin/type/model checks and redacted upstream errors.
-- Physical iPad camera/speaker behavior, sustained device performance and illumination still require a device check. Browser audio requires a page gesture. Model latency remains in addition to capture/detection time.
+| Profile | Observed end-to-end times | Reported cost/image |
+| --- | --- | --- |
+| Nano Banana 2 Lite, 1K | 14.54s | $0.03391 |
+| Nano Banana 2, 512px | 10.90s, 12.12s | ~$0.0455 |
+| FLUX.2 Klein 4B, native | 11.56s, 10.97s | $0.015 |
 
-## Assets and privacy
+These few tests did not establish a meaningful personalized-image speedup. Klein was selected for the lower cost and useful horror result. Cached scares provide the immediate response; hosted editing still takes seconds and varies with provider load. This is not a guaranteed latency benchmark.
 
-Local dummy mode sends no camera frames or landmarks anywhere and retains them only in memory. Remote mode sends captured JPEGs to OpenRouter as described above. Face detection is geometric tracking, not identity recognition. `assets/portrait.jpg` is the previously generated sample photo used only by the explicit test fixture, never normal camera mode. Third-party face-api.js/model licenses are in `assets/vendor/LICENSE` and `NOTICE.txt`. Horror audio is synthesized by this project.
+Changing provider, leaving the page or sustained person loss cancels local work and suppresses stale replies. Cancellation does not guarantee that an upstream job stops or avoids billing. Timeouts are 80 seconds on the server and 90 in the browser. Most failures back off ten seconds; configuration/auth/balance errors pause until settings are reapplied. No silent dummy fallback disguises a failed remote edit.
 
-## Lower-latency profiles
+## Debug controls
 
-Remote snapshots are resized to at most 512px on the long edge before JPEG encoding. Debug exposes output-size selection for models that support it. Nano Banana Lite remains restricted to 1K output; Nano Banana 2 supports 512px and 1K in this app, defaulting to 512px. FLUX.2 Klein 4B is available as a lighter image editor; it uses its native output size and JPEG output, without sending an unsupported resolution parameter. Live same-portrait latency comparisons guide the production default via IMAGE_MODEL. Actual latency varies with provider load.
+Open `?debug=1` for presence/mask status, inference timing, cached-frame skips, renderer backend, cache/fresh events, model/request timing, errors, sound state, reported API cost and face/person geometry overlays. Debug controls test sounds, reveal immediately, adjust morph strength and volume, disable instant cached scares, switch providers, and choose supported output resolution. Preferences are stored in the tab session; photos are kept only in memory.
+
+Development parameters:
+
+- `?test=portrait`: the fictional sample portrait through the real detection/mask/render pipeline.
+- `?test=empty`: a blank scene; it must not trigger scares.
+- `?mute=1`: suppress audio.
+- `?backend=cpu`: force the CPU ML backend.
+- `?effect=ghost` or `?effect=aged`: alternative transformation prompts/effects.
+- `?debug=1&hold=6`: extend the debug reveal for inspecting foreground masks and lamp blackout; normal reveals are unchanged.
+
+Combine with `&`, e.g. `?test=portrait&debug=1&mute=1&backend=cpu`.
+
+## Verification
+
+Run `node tests/cycle.test.mjs`, `node tests/provider.test.mjs`, `node tests/worker.test.mjs` and `node tests/presence.test.mjs`. These cover trigger timing, single in-flight edits, departures, stale work, retries, supported request parameters, secret redaction, Worker assets/HTTP validation, empty masks and person bounds.
+
+Browser QA verified real person segmentation on the synthetic portrait, empty-scene behavior, mask caching, instant cached scares, full-frame Canvas RGB warping, foreground isolation and zero opacity on all four bulb groups during a reveal. CPU inference was approximately 90–175ms in this test; cached checks were about 1ms. All three sound variants and audio unlocking were checked previously. Live paid-model tests use only the verified fictional AI-generated fixture, not a private photo. Physical iPad camera/speaker behavior, GPU rendering and sustained device performance still need a device check.
+
+## Assets and data
+
+`portrait.jpg` was generated by image_gen in this conversation. `scare-cache.jpg` was generated by editing that fictional portrait through OpenRouter. They are stock test/scare assets, not visitor photos. Foreground masks, camera frames and personalized caches remain in browser memory; remote mode sends captured JPEGs to OpenRouter and its selected provider. Third-party licenses and notices are in `assets/vendor/`.
+
+References: https://openrouter.ai/api/v1/images/models , https://openrouter.ai/blog/tutorials/nano-banana/ , https://github.com/tensorflow/tfjs-models/tree/master/body-pix .

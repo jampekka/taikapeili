@@ -15,6 +15,6 @@ export class MirrorCycle {
   if(this.phase==='live'&&now>=this.nextCapture){this.phase='processing';this.ticket++;return {hide,capture:true,ticket:this.ticket}}
   return {hide,capture:false};
  }
- complete(ticket,now){if(ticket!==this.ticket||this.phase!=='processing'||now-this.lastSeen>1000)return false;this.phase='reveal';this.showUntil=now+1400;return true}
+ complete(ticket,now){if(ticket!==this.ticket||this.phase!=='processing')return false;this.phase='reveal';this.showUntil=now+1400;return true}
  fail(ticket,now){if(ticket===this.ticket){this.phase='live';this.nextCapture=now+10000}}
 }

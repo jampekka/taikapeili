@@ -2,3 +2,8 @@ face-api.js 0.22.2, Tiny Face Detector, and tiny 68-point landmark model
 https://github.com/justadudewhohacks/face-api.js
 MIT license: see LICENSE. The bundle retains its included TensorFlow.js notices.
 All JavaScript and model weights are served from this Site. No third-party runtime requests are required.
+
+TensorFlow.js converter 1.7.4 and BodyPix 2.0.5 (MobileNetV1 0.50, 1-byte weights).
+https://github.com/tensorflow/tfjs-models/tree/master/body-pix
+Apache 2.0; original notices are retained in the bundled scripts.
+The stock scare photo was generated from a fictional imagegen portrait via OpenRouter.
