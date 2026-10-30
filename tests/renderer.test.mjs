@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import {MirrorRenderer} from '../assets/renderer.js';
+import {MirrorRenderer,rippleOrigin} from '../assets/renderer.js';
 import {revealImpact} from '../assets/portrait.js';
 const w=64,h=80;
 let output;
 const ctx={clearRect(){},drawImage(){},getImageData(){return {data:new Uint8ClampedArray(w*h*4).fill(255)}},createImageData(){return {data:new Uint8ClampedArray(w*h*4)}},putImageData(value){output=value.data}};
 const renderer={scratch:{width:w,height:h},sctx:ctx,ctx:{drawImage(){}}},image={width:w,height:h};
 for(const cover of [[1,1],[.6,1],[1,.6]])for(const power of [0,.0175,.025]){
- MirrorRenderer.prototype.drawCPU.call(renderer,image,w,h,{cover,power,time:2,aspect:w/h,ripples:[[.4,.012,.04,.22],[.8,.008,.96,.74]]});
+ MirrorRenderer.prototype.drawCPU.call(renderer,image,w,h,{cover,power,time:2,aspect:w/h,ripples:[[.4,.036,.06,.22],[.8,.036,.94,.74]]});
  assert.ok(output.every(v=>v===255),'Live warp must not introduce black pixels, including at the edges');
 }
 // The reveal bypasses the live RGB sampling path completely.
@@ -27,7 +27,7 @@ assert.deepEqual(powers,Array(3).fill(.025*.7),'Sequence flags do not affect bas
 let speech=1;live.voiceLevel=()=>speech;
 for(let i=0;i<20;i++)MirrorRenderer.prototype.draw.call(live,1100+i*33);
 assert.ok(live.ripples.length>=2,'Speech emits overlapping wave packets');
-assert.ok(live.ripples.every(r=>r.amplitude>0&&r.amplitude<=.012*.7));
+assert.ok(live.ripples.every(r=>r.amplitude>0&&r.amplitude<=.036*.7));
 assert.ok(powers.every(p=>p===.025*.7),'Speaking cannot change base warp or RGB strength');
 assert.equal(live.strength,.7);assert.equal(live.liveView.ripples.length,live.ripples.length);
 speech=0;MirrorRenderer.prototype.draw.call(live,1800);assert.ok(live.ripples.length>0,'Rings keep travelling after speech ends');
@@ -36,8 +36,8 @@ assert.equal(live.ripples.length,0,'Silent mirror settles to base warp after the
 speech=1;for(let i=0;i<200;i++)MirrorRenderer.prototype.draw.call(live,7000+i*33);
 assert.ok(live.ripples.length<=8,'Long speech has bounded packet storage');
 assert.ok(new Set(live.ripples.map(r=>r.origin.join(','))).size>=4,'Long speech uses several side sources');
-assert.ok(live.ripples.every(r=>r.origin[0]===.04||r.origin[0]===.96),'No ring originates in the centre');
-assert.ok(live.ripples.slice(1).every((r,i)=>r.origin[0]!==live.ripples[i].origin[0]),'Successive packets alternate sides');
+assert.ok(live.ripples.every(r=>r.origin[0]<=.065||r.origin[0]>=.935),'No ring originates in the centre');
+assert.ok(live.ripples.slice(1).every((r,i)=>(r.origin[0]<.5)!==(live.ripples[i].origin[0]<.5)),'Successive packets alternate sides');
 live.reduced=true;MirrorRenderer.prototype.draw.call(live,14000);assert.equal(powers.at(-1),.006*.7);assert.equal(live.ripples.length,0,'Reduced motion disables speech rings');
 const realRAF=globalThis.requestAnimationFrame;globalThis.requestAnimationFrame=()=>1;
 try{
@@ -46,3 +46,17 @@ try{
  calls.length=0;MirrorRenderer.prototype.tick.call(underlay,800);assert.deepEqual(calls,[['live',800],['clear']],'Uncover the continuously updated live canvas without resetting its clock');
 }finally{globalThis.requestAnimationFrame=realRAF}
 console.log('PASS: phase-independent base RGB warp and additive travelling voice rings and continuous rendering behind reveal');
+
+for(let i=0;i<6;i++){
+ const anchor=i%2===0?.04:.96;
+ let previous=rippleOrigin(i,0);let moved=false;
+ for(let t=0;t<600;t+=.1){
+  const next=rippleOrigin(i,t);
+  assert.ok(Math.abs(next[0]-anchor)<=.02500001,'Emitter stays within its side corridor');
+  assert.ok(Math.hypot(next[0]-previous[0],next[1]-previous[1])<.001,'Source motion is slow and continuous');
+  if(Math.hypot(next[0]-rippleOrigin(i,0)[0],next[1]-rippleOrigin(i,0)[1])>.01)moved=true;
+  previous=next;
+ }
+ assert.ok(moved,'Each source wanders');
+}
+console.log('PASS: slow bounded emitter wandering stays away from centre');

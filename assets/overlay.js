@@ -11,8 +11,8 @@ export function ripplePoint(p,{aspect=1,ripples=[]}={}){
  return {x,y};
 }
 export function sampleLivePoint(p,view={},channel=0,voiced=ripplePoint(p,view)){
- const {cover=[1,1],power=0,time=0}=view;
- let x=1-((voiced.x-.5)*cover[0]+.5),y=(voiced.y-.5)*cover[1]+.5;
+ const {cover=[1,1],power=0,time=0}=view,split=1+channel*.45;
+ let x=1-((p.x+(voiced.x-p.x)*split-.5)*cover[0]+.5),y=(p.y+(voiced.y-p.y)*split-.5)*cover[1]+.5;
  const dx=x-(.5+.08*Math.sin(time*.31)),dy=y-(.48+.07*Math.cos(time*.27));
  const ex=2*p.x-1,ey=2*p.y-1,t=Math.min(1,Math.max(0,(1-ex*ex)*(1-ey*ey))/.65),a=power*t*t*(3-2*t);
  const wave=Math.sin(Math.hypot(dx,dy)*13-time*1.9+channel*.8)*a*.65;x+=dx*wave;y+=dy*wave;

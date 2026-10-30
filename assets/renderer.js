@@ -3,11 +3,15 @@ import {projectLivePoint,sampleLivePoint,ripplePoint} from './overlay.js';
 const vertex=`attribute vec2 position;varying vec2 uv;void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
 const fragment=`precision mediump float;varying vec2 uv;uniform sampler2D image;uniform float time,zoom,power,mirror,scare;uniform vec2 cover;uniform float aspect;uniform vec4 ripples[8];
 vec2 ripplePoint(vec2 p){vec2 edge=2.*p-1.;float fade=max(0.,(1.-edge.x*edge.x)*(1.-edge.y*edge.y));vec2 result=p;for(int i=0;i<8;i++){vec2 d=(p-ripples[i].zw)*vec2(aspect,1.);float radius=length(d);float age=ripples[i].x,amp=ripples[i].y;float front=radius-age*.48;float offset=amp*sin(front*39.269908)*exp(-front*front/.0288)*exp(-age*1.15);float t=clamp(radius/.06,0.,1.);float amount=offset*fade*t*t*(3.-2.*t);result+=d/max(radius,.0001)*amount/vec2(aspect,1.);}return result;}
-vec2 warp(vec2 p,vec2 voiced,float channel){vec2 q=(voiced-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirror>.5)q.x=1.-q.x;vec2 d=q-vec2(.5+.08*sin(time*.31),.48+.07*cos(time*.27));float radius=length(d);vec2 edge=2.*p-1.;float falloff=smoothstep(0.,.65,max(0.,(1.-edge.x*edge.x)*(1.-edge.y*edge.y)));float amount=power*falloff;q+=d*sin(radius*13.-time*1.9+channel*.8)*amount*.65;q.x+=sin(q.y*9.+time*.8+channel*.26)*amount*.45+sin(q.y*24.-time*1.3+channel)*amount*.12;q.y+=sin(q.x*11.-time*.6+channel*.33)*amount*.4;return q;}
+vec2 warp(vec2 p,vec2 voiced,float channel){vec2 q=(p+(voiced-p)*(1.+channel*.45)-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirror>.5)q.x=1.-q.x;vec2 d=q-vec2(.5+.08*sin(time*.31),.48+.07*cos(time*.27));float radius=length(d);vec2 edge=2.*p-1.;float falloff=smoothstep(0.,.65,max(0.,(1.-edge.x*edge.x)*(1.-edge.y*edge.y)));float amount=power*falloff;q+=d*sin(radius*13.-time*1.9+channel*.8)*amount*.65;q.x+=sin(q.y*9.+time*.8+channel*.26)*amount*.45+sin(q.y*24.-time*1.3+channel)*amount*.12;q.y+=sin(q.x*11.-time*.6+channel*.33)*amount*.4;return q;}
 vec4 sampleAt(vec2 p){if(scare>.5&&(p.x<0.||p.y<0.||p.x>1.||p.y>1.))return vec4(0.);return texture2D(image,clamp(p,vec2(0.),vec2(1.)));}
 void main(){vec2 voiced=ripplePoint(uv);vec4 r=sampleAt(warp(uv,voiced,-1.)),g=sampleAt(warp(uv,voiced,0.)),b=sampleAt(warp(uv,voiced,1.));vec3 rgb=vec3(r.r*r.a,g.g*g.a,b.b*b.a);gl_FragColor=vec4(rgb,1.);}`;
 // Alternate sides and heights so successive speech waves never share a central source.
 const rippleSources=[[.04,.22],[.96,.74],[.04,.75],[.96,.24],[.04,.48],[.96,.5]];
+export function rippleOrigin(index,time){
+ const i=index%rippleSources.length,base=rippleSources[i],angle=time*(.11+i*.013)+i*2.4;
+ return [base[0]+.025*Math.cos(angle),base[1]+.055*Math.sin(angle)];
+}
 export class MirrorRenderer {
  constructor(canvas,{onTick=()=>{},voiceLevel=()=>0,reduced=false,revealCanvas=null}={}){this.voiceLevel=voiceLevel;this.speechPulse=0;this.ripples=[];this.rippleIndex=0;this.lastRippleAt=-Infinity;this.speechAt=null;this.revealCanvas=revealCanvas;this.revealContext=revealCanvas?.getContext('2d',{alpha:false});if(revealCanvas)revealCanvas.hidden=true;this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.lastDraw=0;this.strength=.7;
   try{this.gl=canvas.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false})}catch{}
@@ -44,8 +48,8 @@ export class MirrorRenderer {
   this.speechPulse=this.reduced?0:previous+(voice-previous)*(1-Math.exp(-dt/75));
   this.ripples=this.reduced?[]:(this.ripples||[]).filter(r=>now-r.at<2400);
   if(!this.reduced&&this.strength>0&&this.speechPulse>.06&&now-(this.lastRippleAt??-Infinity)>=280){
-   const origin=rippleSources[(this.rippleIndex||0)%rippleSources.length];this.rippleIndex=(this.rippleIndex||0)+1;
-   this.ripples.push({at:now,amplitude:.012*this.strength*this.speechPulse,origin});this.ripples=this.ripples.slice(-8);this.lastRippleAt=now;
+   const origin=rippleOrigin(this.rippleIndex||0,now/1000);this.rippleIndex=(this.rippleIndex||0)+1;
+   this.ripples.push({at:now,amplitude:.036*this.strength*this.speechPulse,origin});this.ripples=this.ripples.slice(-8);this.lastRippleAt=now;
   }
   const ripples=this.ripples.map(r=>[(now-r.at)/1000,r.amplitude,r.origin[0],this.gl?1-r.origin[1]:r.origin[1]]);
   const zoom=1,power=(this.reduced?.006:.025)*this.strength;
