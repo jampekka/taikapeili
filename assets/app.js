@@ -1,5 +1,5 @@
 import {transformSnapshot} from './effects.js';
-import {FaceTracker,faceToMirror} from './tracker.js';
+import {FaceTracker,faceToMirror,bothEyesVisible} from './tracker.js';
 import {MirrorRenderer} from './renderer.js';
 import {MirrorRun,delay} from './run.js';
 import {loadSettings,saveSettings,ENDINGS} from './settings.js';
@@ -32,7 +32,7 @@ const run=new MirrorRun(state=>{
  updateDebug();
 });
 function log(message){events.unshift(`${new Date().toLocaleTimeString()} ${safeError(message)}`);events.length=Math.min(10,events.length);updateDebug()}
-function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 3s absence'}`,`provider    ${config.provider==='local'?'dummy (no API calls)':config.model}`,`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
+function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 3s absence'}`,`provider    ${config.provider==='local'?'dummy (no API calls)':config.model}`,`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
 function playActiveCue(){
  if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
  const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
@@ -44,7 +44,7 @@ async function approach(signal){
  log('Approach · 2s lead-in');await delay(startDelayMs,signal);
  let speakingUntil=0,nextPromptAt=0,prompted=false;
  while(true){
-  const now=performance.now(),close=run.facePresent&&lastFace?.width>=config.closeWidth;
+  const now=performance.now(),close=run.facePresent&&lastFace?.width>=config.closeWidth&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye));
   if(close&&prompted&&now>=speakingUntil)break;
   if((!close||!prompted)&&run.facePresent&&now>=nextPromptAt){
    const duration=Math.ceil(audio.duration('come',2)*1000);cue('Tule lähemmäksi.','come',duration);prompted=true;

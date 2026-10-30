@@ -6,6 +6,11 @@ export function faceToMirror(face,sourceRatio,viewRatio){
  const center=cameraToMirror(face.center,sourceRatio,viewRatio),a=cameraToMirror({x:0,y:0},sourceRatio,viewRatio),b=cameraToMirror({x:1,y:1},sourceRatio,viewRatio);
  return {...face,center,width:face.width*Math.abs(b.x-a.x),height:face.height*Math.abs(b.y-a.y),eyes:face.eyes.map(p=>cameraToMirror(p,sourceRatio,viewRatio)).sort((a,b)=>a.x-b.x)};
 }
+// Eye coordinates are already in the mirrored display crop, not raw camera space.
+export function bothEyesVisible(face,project=point=>point){
+ const inside=point=>!!point&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=0&&point.x<=1&&point.y>=0&&point.y<=1;
+ return face?.eyes?.length===2&&face.eyes.every(eye=>inside(eye)&&inside(project(eye)));
+}
 export class FaceTracker {
  constructor(onResult,onError=()=>{}){
   this.onResult=onResult;this.onError=onError;this.busy=false;

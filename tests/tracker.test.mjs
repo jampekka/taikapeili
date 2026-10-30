@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {cameraToMirror,faceToMirror,FaceTracker} from '../assets/tracker.js';
+import {cameraToMirror,faceToMirror,bothEyesVisible,FaceTracker} from '../assets/tracker.js';
 // The full camera is tracked; only the mirror view is cropped and reflected.
 assert.deepEqual(cameraToMirror({x:.5,y:.5},4/3,3/4),{x:.5,y:.5});
 const left=cameraToMirror({x:0,y:.5},4/3,3/4),right=cameraToMirror({x:1,y:.5},4/3,3/4);
@@ -7,6 +7,15 @@ assert.ok(left.x>1&&right.x<0,'Camera edges remain outside a narrower mirror cro
 const f=faceToMirror({center:{x:.5,y:.5},width:.2,height:.3,eyes:[{x:.45,y:.4},{x:.55,y:.4}]},4/3,3/4);
 assert.ok(f.eyes[0].x<f.eyes[1].x);assert.equal(f.eyes[0].y,.4);assert.ok(Math.abs(f.width-.2/(.75/(4/3)))<1e-9);
 const portrait=cameraToMirror({x:.3,y:.4},.75,4/3);assert.equal(portrait.x,.7);assert.ok(portrait.y<.4,'Landscape display crops camera height');
+// A large face in the raw camera must not pass the gate if the displayed crop hides an eye.
+const cropFace=eyes=>faceToMirror({center:{x:.2,y:.5},width:.4,height:.5,eyes},4/3,3/4);
+const outside=cropFace([{x:.05,y:.4},{x:.15,y:.4}]);assert.ok(outside.width>.45);assert.equal(bothEyesVisible(outside),false);
+const oneEye=cropFace([{x:.2,y:.4},{x:.35,y:.4}]);assert.equal(bothEyesVisible(oneEye),false);
+const visible=cropFace([{x:.35,y:.4},{x:.6,y:.4}]);assert.equal(bothEyesVisible(visible),true);
+const vertical=faceToMirror({center:{x:.5,y:.1},width:.6,height:.5,eyes:[{x:.35,y:.1},{x:.65,y:.1}]},3/4,4/3);assert.equal(bothEyesVisible(vertical),false,'Reject eyes above the landscape display crop');
+assert.equal(bothEyesVisible(visible,eye=>({...eye,x:eye.x+1})),false,'Also account for the visible live morph');
+for(const face of [null,{}, {eyes:[]},{eyes:[{x:.5,y:.5}]},{eyes:[{x:NaN,y:.5},{x:.6,y:.5}]}])assert.equal(!!bothEyesVisible(face),false);
+console.log('PASS: width alone cannot advance approach; both eyes must be in the actual display crop and projected view');
 let worker,resolveBitmap;const messages=[];globalThis.Worker=class{constructor(){worker=this}postMessage(data){messages.push(data)}};
 globalThis.createImageBitmap=()=>new Promise(resolve=>{resolveBitmap=resolve});
 const received=[],tracker=new FaceTracker(data=>received.push(data));worker.onmessage({data:{type:'ready',backend:'test'}});await tracker.ready;
