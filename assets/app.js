@@ -10,7 +10,7 @@ import {HorrorAudio} from './audio.js';
 import {safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
-const revealMs=650,encoreMs=300,lookMs=4000,startDelayMs=2000,laughDelayMs=400;
+const revealMs=650,encoreMs=450,lookMs=4000,startDelayMs=2000,laughDelayMs=400;
 let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null;
 let source=null,stream=null,detector=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null;
 let config=loadSettings();
@@ -101,8 +101,8 @@ async function reveal(result,signal){
  stats.frameAgeMs=result.capturedAt===undefined?null:performance.now()-result.capturedAt;
  await showStartle(result,signal,revealMs);
 }
-async function showStartle(result,signal,duration){
- $('ritualText').hidden=true;renderer.show(result.image,duration,result.focus,result.target);stats.sound=muted?'muted':audio.play(duration===encoreMs?duration/1000:undefined);stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log(duration===encoreMs?'Cached second scare':'Reveal');await delay(duration,signal);renderer.clearReveal();
+async function showStartle(result,signal,duration,repeated=false){
+ $('ritualText').hidden=true;renderer.show(result.image,duration,result.focus,result.target);stats.sound=muted?'muted':audio.play(duration<revealMs?duration/1000:undefined);stats.reveals++;mirror.dataset.reveals=String(stats.reveals);log(repeated?'Cached second scare':'Reveal');await delay(duration,signal);renderer.clearReveal();
 }
 async function instruction(signal){
  stats.sound=muted?'muted':audio.warning(config.ending);log('Post-sequence instruction · '+config.ending+' · '+stats.sound);
@@ -117,7 +117,7 @@ function trigger(face){
  if(run.state!=='idle'||!run.armed||!source)return;
  stats.error='none';stats.frameAgeMs=null;stats.imageMs=null;stats.providerMs=null;
  log('Face → approach → sequence');
- run.start({approach,generate:signal=>generate(lastFace||face,signal),generateAfterSequence:true,sequence,beforeReveal,reveal,afterReveal,instruction,encore:config.encore?(result,signal)=>showStartle(result,signal,encoreMs):null});
+ run.start({approach,generate:signal=>generate(lastFace||face,signal),generateAfterSequence:true,sequence,beforeReveal,reveal,afterReveal,instruction,encore:config.encore!=='off'?(result,signal)=>showStartle(result,signal,config.encore==='original'?revealMs:encoreMs,true):null});
 }
 function drawTracking(faces){
  const c=$('tracking');c.hidden=!debug||!config.boxes||run.state==='reveal';if(c.hidden)return;
@@ -193,8 +193,8 @@ if(debug){
  for(const [id,key] of [['volume','volume'],['morph','morph'],['closeWidth','closeWidth']])$(id).value=Math.round(config[key]*100);
  showCloseWidth();
  $('showTexts').checked=config.texts;$('boxes').checked=config.boxes;$('ending').value=config.ending;$('endingCopy').textContent=ENDINGS[config.ending];
- $('encore').checked=config.encore;
- $('encore').addEventListener('change',e=>{config.encore=e.target.checked;persistSettings()});
+ $('encore').value=config.encore;
+ $('encore').addEventListener('change',e=>{config.encore=e.target.value;persistSettings()});
  $('ending').addEventListener('change',e=>{config.ending=e.target.value;$('endingCopy').textContent=ENDINGS[config.ending];persistSettings()});
  $('testEnding').addEventListener('click',async()=>{await unlock();stats.sound=audio.warning(config.ending);updateDebug()});
  $('debug').hidden=audio.status!=='running';
