@@ -73,3 +73,16 @@ console.log('PASS: post-scare laugh/speech finish despite absence, play once, an
  await flush();r.observeFace(false,100);r.observeFace(false,1099);assert.equal(r.state,'approach');r.observeFace(false,1100);assert.equal(r.state,'finished');close.resolve();await flush();assert.equal(sequences,0);r.observeFace(false,3100);assert.equal(r.state,'idle');
 }
 console.log('PASS: approach gates narration and generation; one approach loop; 1s loss cancellation and 3s rearm');
+
+{
+ const speech=deferred(),second=deferred(),cached={image:'cached',focus:{x:.4,y:.3},target:{x:.5,y:.4}};
+ let captures=0,alignments=0,encores=0,first;
+ const r=new MirrorRun();r.start({generate:()=>{captures++;return cached},sequence:()=>{},beforeReveal:value=>{alignments++;return value},reveal:value=>{first=value},instruction:()=>speech.promise,encore:(value,signal)=>{encores++;assert.equal(value,first,'Second scare uses the exact prepared image and placement');assert.equal(signal.aborted,false);return second.promise}});
+ await flush();assert.equal(r.state,'instruction');assert.equal(encores,0,'Second scare must wait for the ending');
+ r.observeFace(false,0);r.observeFace(false,3000);assert.equal(r.armed,true);speech.resolve();await flush();assert.equal(r.state,'reveal');assert.equal(encores,1);assert.equal(captures,1);assert.equal(alignments,1);assert.equal(r.start({}),false,'Rearming cannot overlap the second scare');
+ r.observeFace(false,5000);assert.equal(r.state,'reveal','Face loss cannot stop second scare');second.resolve();await flush();assert.equal(r.state,'idle');
+}
+{
+ const speech=deferred();let encores=0;const r=new MirrorRun();r.start({generate:()=>1,sequence:()=>{},reveal:()=>{},instruction:()=>speech.promise,encore:()=>encores++});await flush();r.reset();speech.resolve();await flush();assert.equal(encores,0,'Shutdown during ending must suppress the second scare');assert.equal(r.state,'idle');
+}
+console.log('PASS: optional cached second scare waits for speech, skips capture/alignment, finishes despite absence, and respects shutdown');

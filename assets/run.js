@@ -11,7 +11,7 @@ export class MirrorRun {
   if(absentFor>=3000){this.armed=true;if(this.state==='finished')this.setState('idle')}
  }
  cancel(){const run=this.active;this.active=null;run?.controller.abort();this.setState('finished')}
- start({generate,sequence,approach=null,beforeReveal=async image=>image,reveal,afterReveal=async()=>{},instruction=null,generateAfterSequence=false}){
+ start({generate,sequence,approach=null,beforeReveal=async image=>image,reveal,afterReveal=async()=>{},instruction=null,encore=null,generateAfterSequence=false}){
   if(this.state!=='idle'||!this.armed)return false;
   this.armed=false;
   const run={controller:new AbortController(),started:performance.now(),imageReady:false,sequenceDone:false,generateAfterSequence};
@@ -33,6 +33,8 @@ export class MirrorRun {
    this.setState('after');await afterReveal(signal);
    if(this.active!==run||signal.aborted)return;
    if(instruction){this.setState('instruction');await instruction(signal)}
+   if(this.active!==run||signal.aborted)return;
+   if(encore){this.setState('reveal');await encore(prepared,signal)}
    if(this.active===run){this.active=null;this.setState(this.armed?'idle':'finished')}
   }).catch(error=>{
    if(this.active!==run)return;
