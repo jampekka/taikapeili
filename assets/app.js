@@ -27,9 +27,7 @@ const run=new MirrorRun(state=>{
  mirror.dataset.requesting=String(state==='running');
  if(state!=='instruction')audio.stop('instruction');
  if(state==='finished')log('Waiting for 3s without a face');
- if(state==='idle'||state==='finished'){activeCue=null;$('ritualText').hidden=true;audio.stop('whisper');renderer.waiting=false}
- if(state==='running')renderer.waiting=true;
- if(state==='reveal'||state==='after')renderer.waiting=false;
+ if(state==='idle'||state==='finished'){activeCue=null;$('ritualText').hidden=true;audio.stop('whisper')}
  if(state==='error'){stats.error=safeError(run.error);$('errorText').textContent=stats.error;$('runError').hidden=false;log(stats.error)}
  updateDebug();
 });

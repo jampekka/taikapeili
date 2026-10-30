@@ -19,3 +19,15 @@ assert.equal(separate.revealCanvas.hidden,false);assert.equal(separate.revealCan
 assert.equal(revealContext.globalAlpha,1);assert.equal(revealContext.globalCompositeOperation,'source-over','Brightness compositing must reset before the next frame');
 operations.length=0;separate.reduced=true;MirrorRenderer.prototype.drawReveal.call(separate,245);assert.deepEqual(operations,['black',[192,560],[-320,-320],'image'],'Reduced motion has no shake or brightness redraw');
 console.log('PASS: live warp stays filled across times/aspect ratios; separate reveal draws one unwarped image');
+// Regression: sequence/cancellation must not switch live morph power.
+const powers=[];
+const live={source:{width:640,height:800},canvas:{width:0,height:0,getBoundingClientRect:()=>({width:640,height:800})},strength:.7,reduced:false,drawCPU(...args){powers.push(args[5])}};
+for(const waiting of [false,true,false]){live.waiting=waiting;MirrorRenderer.prototype.draw.call(live,1000)}
+assert.deepEqual(powers,[.025*.7,.025*.7,.025*.7],'A sequence waiting flag cannot affect live morph intensity');
+const realRAF=globalThis.requestAnimationFrame;globalThis.requestAnimationFrame=()=>1;
+try{
+ const calls=[],underlay={running:true,gl:null,lastDraw:0,scareImage:{},until:750,draw(now){calls.push(['live',now])},drawReveal(now){calls.push(['reveal',now])},clearReveal(){this.scareImage=null;calls.push(['clear'])},onTick(){},tick(){}};
+ MirrorRenderer.prototype.tick.call(underlay,100);assert.deepEqual(calls,[['live',100],['reveal',100]],'Live animation must update under the reveal overlay');
+ calls.length=0;MirrorRenderer.prototype.tick.call(underlay,800);assert.deepEqual(calls,[['live',800],['clear']],'Uncover the continuously updated live canvas without resetting its clock');
+}finally{globalThis.requestAnimationFrame=realRAF}
+console.log('PASS: constant live morph power across waiting/cancellation and continuous rendering behind reveal');

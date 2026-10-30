@@ -6,7 +6,7 @@ vec2 warp(vec2 p,float channel){vec2 q=(p-.5)/zoom+.5;q=(q-.5)*cover+.5;if(mirro
 vec4 sampleAt(vec2 p){if(scare>.5&&(p.x<0.||p.y<0.||p.x>1.||p.y>1.))return vec4(0.);return texture2D(image,clamp(p,vec2(0.),vec2(1.)));}
 void main(){vec4 r=sampleAt(warp(uv,-1.)),g=sampleAt(warp(uv,0.)),b=sampleAt(warp(uv,1.));vec3 rgb=vec3(r.r*r.a,g.g*g.a,b.b*b.a);gl_FragColor=vec4(rgb,1.);}`;
 export class MirrorRenderer {
- constructor(canvas,{onTick=()=>{},reduced=false,revealCanvas=null}={}){this.revealCanvas=revealCanvas;this.revealContext=revealCanvas?.getContext('2d',{alpha:false});if(revealCanvas)revealCanvas.hidden=true;this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.waiting=false;this.lastDraw=0;this.strength=.7;
+ constructor(canvas,{onTick=()=>{},reduced=false,revealCanvas=null}={}){this.revealCanvas=revealCanvas;this.revealContext=revealCanvas?.getContext('2d',{alpha:false});if(revealCanvas)revealCanvas.hidden=true;this.canvas=canvas;this.onTick=onTick;this.reduced=reduced;this.source=null;this.scareImage=null;this.scareAt=-Infinity;this.until=0;this.lastDraw=0;this.strength=.7;
   try{this.gl=canvas.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false})}catch{}
   if(this.gl){try{this.initGL();this.backend='WebGL RGB warp'}catch{this.gl=null}}
   if(!this.gl){const replacement=document.createElement('canvas');replacement.id=canvas.id;replacement.className=canvas.className;canvas.replaceWith(replacement);this.canvas=replacement;this.ctx=replacement.getContext('2d',{alpha:false});this.scratch=document.createElement('canvas');this.sctx=this.scratch.getContext('2d',{willReadFrequently:true});this.backend='Canvas RGB warp'}
@@ -25,10 +25,16 @@ export class MirrorRenderer {
   ctx.translate(w*((this.target?.x??.5)+impact.x),h*((this.target?.y??.42)+impact.y));ctx.scale(scale,scale);ctx.translate(-this.focus.x*iw,-this.focus.y*ih);ctx.drawImage(image,0,0);
   if(impact.brightness>.01){ctx.globalCompositeOperation='screen';ctx.globalAlpha=impact.brightness;ctx.drawImage(image,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over'}
  }
- tick(now){if(!this.running)return;if(this.scareImage&&now<this.until){this.drawReveal(now)}else{if(this.scareImage)this.clearReveal();if(now-this.lastDraw>=(this.gl?32:80)){this.lastDraw=now;this.draw(now)}}this.onTick(now);this.raf=requestAnimationFrame(t=>this.tick(t))}
+ tick(now){
+  if(!this.running)return;
+  // The live morph keeps its own clock and cadence, including behind the reveal.
+  if(now-this.lastDraw>=(this.gl?32:80)){this.lastDraw=now;this.draw(now)}
+  if(this.scareImage&&now<this.until)this.drawReveal(now);else if(this.scareImage)this.clearReveal();
+  this.onTick(now);this.raf=requestAnimationFrame(t=>this.tick(t));
+ }
  draw(now){const active=false;const image=this.source;if(!image)return;const iw=image.videoWidth||image.naturalWidth||image.width,ih=image.videoHeight||image.naturalHeight||image.height;if(!iw||!ih)return;
   const rect=this.canvas.getBoundingClientRect(),ratio=rect.width/Math.max(1,rect.height);const h=Math.min(this.gl?1080:320,Math.round((this.gl?1280:320)/ratio)),w=Math.round(h*ratio);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h}
-  const zoom=1,power=(this.reduced?.006:this.waiting?.05:.025)*this.strength;
+  const zoom=1,power=(this.reduced?.006:.025)*this.strength;
   const imageRatio=iw/ih,cover=imageRatio>ratio?[ratio/imageRatio,1]:[1,imageRatio/ratio];
   this.liveView={cover,power,time:now/1000,flipY:!!this.gl};
   if(this.gl){const gl=this.gl;gl.viewport(0,0,w,h);gl.useProgram(this.program);gl.bindTexture(gl.TEXTURE_2D,this.texture);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)}catch{return}for(const [n,v] of Object.entries({time:now/1000,zoom,power,mirror:active?0:1,scare:active?1:0}))gl.uniform1f(this.uniforms[n],v);gl.uniform2f(this.uniforms.cover,...cover);gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}

@@ -14,7 +14,7 @@ When the whispers finish, dummy mode captures the latest camera frame and draws 
 
 The separate 2D reveal canvas retains the complete snapshot, with the 50 ms zoom overshoot, fading shake and brightness surges, and ends at 650 ms. Reduced motion is static. Rectangular perimeter lamps are laid out responsively with a common target pitch, equal spacing on each edge, and unique corner bulbs; they go off during the reveal. The laugh starts 400 ms after the reveal ends. Then the selected quiet ending instruction plays once without visible text, even if the viewer has left. Debug offers “Lähetä seuraava luokseni” and “Älä kerro minusta kenellekään”, with a playback preview. Once the reveal starts, face loss does not interrupt the reveal, laugh or ending. Page shutdown or audio interruption still stops playback.
 
-The live mirror retains the radial RGB warp. Debug boxes and eye crosshairs follow that same coordinate transform. Optional remote image generation retains its completion barrier and dummy fallback.
+The live mirror retains the radial RGB warp at the saved strength in every sequence state. Its clock and drawing continue behind the separate reveal canvas; starting, cancelling or finishing a run never changes its intensity. Debug boxes and eye crosshairs follow that same coordinate transform. Optional remote image generation retains its completion barrier and dummy fallback.
 
 ## Sound
 
