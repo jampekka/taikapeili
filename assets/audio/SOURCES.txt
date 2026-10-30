@@ -5,3 +5,7 @@ The source listing labels this recording Public Domain. Retrieved 2026-10-30.
 Bundled edit: removed initial 105 ms silence, retained a 720 ms burst, loudness normalized, short fade-out. No other scare effects remain.
 
 Whisper clips come-closer.mp3 and look-deeper.mp3 were generated once through OpenRouter with ElevenLabs eleven-v4, Sarah, Finnish, whispering instruction, 2026-10-30. These are bundled recordings, not runtime synthesis.
+
+Post-reveal laugh: user-supplied Nelson “Ha Ha” clip.
+https://www.myinstants.com/media/sounds/the-simpsons-nelsons-haha.mp3
+Downloaded unchanged 2026-10-30.
