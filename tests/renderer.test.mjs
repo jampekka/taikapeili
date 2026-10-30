@@ -6,7 +6,7 @@ let output;
 const ctx={clearRect(){},drawImage(){},getImageData(){return {data:new Uint8ClampedArray(w*h*4).fill(255)}},createImageData(){return {data:new Uint8ClampedArray(w*h*4)}},putImageData(value){output=value.data}};
 const renderer={scratch:{width:w,height:h},sctx:ctx,ctx:{drawImage(){}}},image={width:w,height:h};
 for(const cover of [[1,1],[.6,1],[1,.6]])for(const power of [0,.0175,.025]){
- MirrorRenderer.prototype.drawCPU.call(renderer,image,w,h,{cover,power,time:2,aspect:w/h,ripples:[[.4,.015],[.8,.012]]});
+ MirrorRenderer.prototype.drawCPU.call(renderer,image,w,h,{cover,power,time:2,aspect:w/h,ripples:[[.4,.012,.04,.22],[.8,.008,.96,.74]]});
  assert.ok(output.every(v=>v===255),'Live warp must not introduce black pixels, including at the edges');
 }
 // The reveal bypasses the live RGB sampling path completely.
@@ -27,7 +27,7 @@ assert.deepEqual(powers,Array(3).fill(.025*.7),'Sequence flags do not affect bas
 let speech=1;live.voiceLevel=()=>speech;
 for(let i=0;i<20;i++)MirrorRenderer.prototype.draw.call(live,1100+i*33);
 assert.ok(live.ripples.length>=2,'Speech emits overlapping wave packets');
-assert.ok(live.ripples.every(r=>r.amplitude>0&&r.amplitude<=.018*.7));
+assert.ok(live.ripples.every(r=>r.amplitude>0&&r.amplitude<=.012*.7));
 assert.ok(powers.every(p=>p===.025*.7),'Speaking cannot change base warp or RGB strength');
 assert.equal(live.strength,.7);assert.equal(live.liveView.ripples.length,live.ripples.length);
 speech=0;MirrorRenderer.prototype.draw.call(live,1800);assert.ok(live.ripples.length>0,'Rings keep travelling after speech ends');
@@ -35,6 +35,9 @@ for(let i=0;i<120;i++)MirrorRenderer.prototype.draw.call(live,1900+i*33);
 assert.equal(live.ripples.length,0,'Silent mirror settles to base warp after the ripple tails');
 speech=1;for(let i=0;i<200;i++)MirrorRenderer.prototype.draw.call(live,7000+i*33);
 assert.ok(live.ripples.length<=8,'Long speech has bounded packet storage');
+assert.ok(new Set(live.ripples.map(r=>r.origin.join(','))).size>=4,'Long speech uses several side sources');
+assert.ok(live.ripples.every(r=>r.origin[0]===.04||r.origin[0]===.96),'No ring originates in the centre');
+assert.ok(live.ripples.slice(1).every((r,i)=>r.origin[0]!==live.ripples[i].origin[0]),'Successive packets alternate sides');
 live.reduced=true;MirrorRenderer.prototype.draw.call(live,14000);assert.equal(powers.at(-1),.006*.7);assert.equal(live.ripples.length,0,'Reduced motion disables speech rings');
 const realRAF=globalThis.requestAnimationFrame;globalThis.requestAnimationFrame=()=>1;
 try{

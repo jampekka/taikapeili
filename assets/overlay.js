@@ -1,10 +1,14 @@
 // Map an unwarped, mirrored camera point through the live renderer's green channel.
 // Only the debug box uses this inverse. Detection and run timing remain unchanged.
 export function ripplePoint(p,{aspect=1,ripples=[]}={}){
- const dx=(p.x-.5)*aspect,dy=p.y-.5,radius=Math.hypot(dx,dy);let offset=0;
- for(const [age,amplitude] of ripples){const front=radius-age*.48;offset+=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288)*Math.exp(-age*1.15)}
- const ex=2*p.x-1,ey=2*p.y-1,fade=Math.max(0,(1-ex*ex)*(1-ey*ey)),t=Math.min(1,radius/.06),amount=offset*fade*t*t*(3-2*t)/Math.max(radius,.0001);
- return {x:p.x+dx*amount/aspect,y:p.y+dy*amount};
+ const ex=2*p.x-1,ey=2*p.y-1,fade=Math.max(0,(1-ex*ex)*(1-ey*ey));let x=p.x,y=p.y;
+ for(const [age,amplitude,originX,originY] of ripples){
+  const dx=(p.x-originX)*aspect,dy=p.y-originY,radius=Math.hypot(dx,dy),front=radius-age*.48;
+  const offset=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288)*Math.exp(-age*1.15);
+  const t=Math.min(1,radius/.06),amount=offset*fade*t*t*(3-2*t)/Math.max(radius,.0001);
+  x+=dx*amount/aspect;y+=dy*amount;
+ }
+ return {x,y};
 }
 export function sampleLivePoint(p,view={},channel=0,voiced=ripplePoint(p,view)){
  const {cover=[1,1],power=0,time=0}=view;
