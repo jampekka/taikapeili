@@ -51,3 +51,11 @@ for(const [originX,originY,x,y] of [[.3,.04,.3,.1],[.7,.96,.7,.9]]){
  assert.ok(Math.hypot(warped.x-x,warped.y-y)>.015,'Top and bottom source swells are as strong as side sources');
 }
 console.log('PASS: farther propagation and active top/bottom edge sources');
+
+// Preserve the source profile that preceded the four-edge layout, independently of ring reach.
+for(const aspect of [.6,1,1.5])for(const x of [.055,.08,.12,.2,.28]){
+ const t=Math.max(0,Math.min(1,(x-.12)/.24)),fade=1-t*t*(3-2*t),dx=(x-.04)*aspect,amount=-.455*Math.exp(-Math.pow(dx/(aspect*.16),2))*fade;
+ const point={x,y:.5},sourceOnly=ripplePoint(point,{aspect,sources:[[.04,.5]],speechPower:.455});
+ assert.ok(Math.abs(sourceOnly.x-(x+dx*amount/aspect))<1e-12,'Local swell matches the earlier source strength and radius at every screen shape');
+}
+console.log('PASS: earlier local source profile preserved independently of longer wave propagation');

@@ -3,10 +3,12 @@
 export function ripplePoint(p,{aspect=1,ripples=[],sources=[],speechPower=0}={}){
  const smooth=(a,b,v)=>{const t=Math.max(0,Math.min(1,(v-a)/(b-a)));return t*t*(3-2*t)};
  const shortSide=Math.min(aspect,1),edgeDistance=Math.min(Math.min(p.x,1-p.x)*aspect,Math.min(p.y,1-p.y))/shortSide,fade=smooth(0,.015,edgeDistance)*(1-smooth(.17,.44,edgeDistance));
+ // The local swell retains the pre-perimeter profile; travelling waves have their own reach.
+ const nearestEdge=Math.min(p.x,1-p.x,p.y,1-p.y),sourceFade=smooth(0,.015,p.x)*smooth(0,.015,1-p.x)*smooth(0,.015,p.y)*smooth(0,.015,1-p.y)*(1-smooth(.12,.36,nearestEdge));
  let x=p.x,y=p.y;
  if(speechPower>.00001)for(const [originX,originY] of sources){
   const dx=(p.x-originX)*aspect,dy=p.y-originY,radius=Math.hypot(dx,dy);
-  const amount=-speechPower*Math.exp(-Math.pow(radius/(shortSide*.16),2))*fade;
+  const amount=-speechPower*Math.exp(-Math.pow(radius/(aspect*.16),2))*sourceFade;
   x+=dx*amount/aspect;y+=dy*amount;
  }
  for(const [age,amplitude,originX,originY] of ripples){
