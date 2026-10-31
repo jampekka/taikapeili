@@ -25,6 +25,15 @@ for(const name of ['opening.mp3','look-here.mp3','come-closer.mp3','scream-sharp
 assert.equal((await worker.fetch(make('/models/face_landmarker.task'),env)).status,200);
 const wasm=await worker.fetch(make('/vendor/mediapipe/wasm/vision_wasm_internal.wasm'),env);assert.equal(wasm.headers.get('content-type'),'application/wasm');assert.deepEqual([...new Uint8Array(await wasm.arrayBuffer()).slice(0,4)],[0,97,115,109]);
 assert.equal((await worker.fetch(make('/face-worker.js'),env)).status,200);
+const loop=await worker.fetch(make('/ghost/sheet-loop.mp4'),env);assert.equal(loop.status,200);assert.equal(loop.headers.get('content-type'),'video/mp4');
+const loopBytes=new Uint8Array(await loop.arrayBuffer());assert.ok(loopBytes.length>10000);
+for(const [range,start,end] of [['bytes=0-1',0,1],['bytes=10-',10,loopBytes.length-1],['bytes=-16',loopBytes.length-16,loopBytes.length-1]]){
+ const part=await worker.fetch(make('/ghost/sheet-loop.mp4',{headers:{range}}),env);assert.equal(part.status,206);
+ assert.equal(part.headers.get('content-range'),`bytes ${start}-${end}/${loopBytes.length}`);
+ assert.deepEqual(new Uint8Array(await part.arrayBuffer()),loopBytes.slice(start,end+1));
+}
+assert.equal((await worker.fetch(make('/ghost/sheet-loop.mp4',{headers:{range:'bytes=999999999-'}}),env)).status,416);
+const headLoop=await worker.fetch(make('/ghost/sheet-loop.mp4',{method:'HEAD'}),env);assert.equal(headLoop.headers.get('content-length'),String(loopBytes.length));assert.equal((await headLoop.arrayBuffer()).byteLength,0);
 const originalFetch=globalThis.fetch;let requests=0;
 try{
  globalThis.fetch=async()=>{requests++;throw new Error('Disabled endpoint must never contact a provider')};

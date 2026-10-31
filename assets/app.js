@@ -1,6 +1,7 @@
 import {CAMERA_CONTROLS,cameraCrop,frameEyes} from './camera-view.js';
 import {transformSnapshot} from './effects.js';
 import {FaceTracker,faceToMirror,bothEyesVisible,facingMirror} from './tracker.js';
+import {GhostOverlay,GHOST_CONTROLS,ghostVisible} from './ghost.js';
 import {MirrorRenderer} from './renderer.js';
 import {MirrorRun,delay} from './run.js';
 import {loadSettings,saveSettings,ENDINGS,EFFECT_CONTROLS} from './settings.js';
@@ -23,10 +24,18 @@ const wakeLock=new ScreenWakeLock(navigator,document,()=>updateDebug());
 const cameraView=document.createElement('canvas'),cameraContext=cameraView.getContext('2d',{alpha:false});
 const frame=document.createElement('canvas'),scan=document.createElement('canvas');
 const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alpha:false});
-const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:()=>{lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
+let ghostPreviewUntil=0;
+const ghost=new GhostOverlay($('ghost'),{reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
+function drawGhost(now){
+ const visible=!!source&&config.ghostEnabled&&ghostVisible(run.state,!!activeCue,debug&&now<ghostPreviewUntil);
+ ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.speechPulse,opacity:config.ghostOpacity,size:config.ghostSize});
+ renderer.ghostTarget=ghost.target;
+}
+const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:now=>{drawGhost(now);lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 renderer.strength=config.morph;
 renderer.effects=config;
 const run=new MirrorRun(state=>{
+ if(state==='reveal'){ghost.clear();renderer.ghostTarget=null}
  if(state!=='approach'){approachPulse?.cancel();approachPulse=null}
  mirror.dataset.phase=state==='running'?'processing':state==='reveal'?'reveal':'live';
  mirror.dataset.requesting=String(state==='running');
@@ -38,7 +47,7 @@ const run=new MirrorRun(state=>{
 });
 function log(message){events.unshift(`${new Date().toLocaleTimeString()} ${safeError(message)}`);events.length=Math.min(10,events.length);updateDebug()}
 function headFacing(){const rect=glass.getBoundingClientRect();return facingMirror(lastFace,rect.width/Math.max(1,rect.height))}
-function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`lamps       ${renderer.lampsReady?'warped':'overlay'}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
+function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`lamps       ${renderer.lampsReady?'warped':'overlay'}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`ghost       ${config.ghostEnabled?ghost.status:'off'}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
 function playActiveCue(){
  if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
  const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
@@ -76,7 +85,7 @@ async function approach(signal){
 async function sequence(signal){
  const secretMs=Math.ceil(audio.duration('secret',6)*1000)+650;
  cue('Näytän sinulle salaisuuden, älä kerro tästä kellekään.','secret',secretMs);await delay(secretMs,signal);
- cue('Katso syvälle silmiisi.','look',lookMs);await delay(lookMs,signal);
+ cue(config.ghostEnabled?'Katso tänne.':'Katso syvälle silmiisi.',config.ghostEnabled?'here':'look',lookMs);await delay(lookMs,signal);
  activeCue=null;$('ritualText').hidden=true;log('Sequence finished');updateDebug();
 }
 async function loadDetector(){
@@ -122,7 +131,7 @@ function updateLiveEyes(faces){
 }
 function beforeReveal(result){
  const eyes=liveEyes||[result.focus],displayEyes=eyes.map(eye=>renderer.projectPoint(eye)),target={x:displayEyes.reduce((s,p)=>s+p.x,0)/displayEyes.length,y:displayEyes.reduce((s,p)=>s+p.y,0)/displayEyes.length};
- return {...result,target};
+ return {...result,target:renderer.ghostTarget||target};
 }
 async function reveal(result,signal){
  stats.frameAgeMs=result.capturedAt===undefined?null:performance.now()-result.capturedAt;
@@ -177,7 +186,7 @@ function loop(now){
  }
  if(source)raf=requestAnimationFrame(loop);
 }
-function stop(){void wakeLock.release();moveFixture=null;liveEyeFocus=null;liveEyes=null;activeCue=null;trackedFaces=[];epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();lightFrame.dataset.rendered='false';renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
+function stop(){ghostPreviewUntil=0;ghost.clear();renderer.ghostTarget=null;void wakeLock.release();moveFixture=null;liveEyeFocus=null;liveEyes=null;activeCue=null;trackedFaces=[];epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();lightFrame.dataset.rendered='false';renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
 async function start(){
  if(starting||source)return;starting=true;void wakeLock.acquire();const current=++epoch;$('startup').hidden=false;$('enable').hidden=true;$('message').textContent='Opening the mirror…';
  try{
@@ -222,20 +231,22 @@ function persistSettings(){
 const effectsPanel=$('effectsPanel');
 function syncEffects(){
  renderer.strength=config.morph;
- for(const control of [...EFFECT_CONTROLS,...CAMERA_CONTROLS]){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=control.key==='cameraZoom'?config[control.key].toFixed(2)+'×':Math.round(config[control.key]*100)+'%'}
- $('morph').value=Math.round(config.morph*100);
+ for(const control of [...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS]){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=control.key==='cameraZoom'?config[control.key].toFixed(2)+'×':Math.round(config[control.key]*100)+'%'}
+ $('morph').value=Math.round(config.morph*100);$('ghostEnabled').checked=config.ghostEnabled;
 }
 if(debug){
  document.documentElement.dataset.debug='true';$('openEffects').hidden=false;
  $('runPublic').addEventListener('click',()=>{const target=new URL(location.href);target.searchParams.delete('debug');location.assign(target.href)});
-for(const control of [...CAMERA_CONTROLS,...EFFECT_CONTROLS]){
+for(const control of [...CAMERA_CONTROLS,...EFFECT_CONTROLS,...GHOST_CONTROLS]){
  const label=document.createElement('label'),title=document.createElement('span'),output=document.createElement('output'),input=document.createElement('input');
  title.textContent=control.label;output.id='value-'+control.key;
  input.id='effect-'+control.key;input.type='range';input.min=control.min;input.max=control.max;input.step='.01';input.setAttribute('aria-label',control.label);label.htmlFor=input.id;output.htmlFor=input.id;
- label.append(title,output,input);$(control.key.startsWith('camera')?'cameraControls':'effectControls').append(label);
+ label.append(title,output,input);$(control.key.startsWith('camera')?'cameraControls':control.key.startsWith('ghost')?'ghostControls':'effectControls').append(label);
  input.addEventListener('input',()=>{config[control.key]=Number(input.value);if(control.key.startsWith('camera'))resetFramingTracking();syncEffects();persistSettings()});
 }
 syncEffects();
+$('ghostEnabled').addEventListener('change',e=>{config.ghostEnabled=e.target.checked;persistSettings()});
+$('previewGhost').addEventListener('click',async()=>{ghostPreviewUntil=performance.now()+8000;await audio.unlock();if(effectsPanel.open)audio.say('here')});
 function resetFramingTracking(){if(!starting)epoch++;trackedFaces=[];lastFace=null;liveEyes=null;liveEyeFocus=null;lastScan=-Infinity;updateCameraView()}
 $('resetCamera').addEventListener('click',()=>{for(const c of CAMERA_CONTROLS)config[c.key]=c.value;resetFramingTracking();syncEffects();persistSettings()});
 $('alignEyes').addEventListener('click',()=>{
@@ -251,7 +262,7 @@ $('openEffects').addEventListener('click',()=>{
 });
 $('cameraSettings').addEventListener('click',()=>$('openEffects').click());
 $('closeEffects').addEventListener('click',()=>effectsPanel.close());
-effectsPanel.addEventListener('close',()=>{audio.stop('whisper');$('openEffects').setAttribute('aria-expanded','false');$('openEffects').focus()});
+effectsPanel.addEventListener('close',()=>{ghostPreviewUntil=0;audio.stop('whisper');$('openEffects').setAttribute('aria-expanded','false');$('openEffects').focus()});
 $('previewVoice').addEventListener('click',async()=>{await audio.unlock();if(effectsPanel.open)audio.say('opening')});
 $('resetEffects').addEventListener('click',()=>{for(const c of EFFECT_CONTROLS)config[c.key]=c.value;syncEffects();persistSettings()});
 }

@@ -17,6 +17,18 @@ export default {
    const html=new TextDecoder().decode(bytes).replace('href="manifest.webmanifest"','href="manifest-debug.webmanifest"').replace('name="apple-mobile-web-app-title" content="The Other Side"','name="apple-mobile-web-app-title" content="Mirror Debug"');
    bytes=new TextEncoder().encode(html);
   }
-  return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':asset[0],'cache-control':path.startsWith('/models/')?'public, max-age=86400':'no-cache','x-content-type-options':'nosniff'}});
+  const headers={'content-type':asset[0],'cache-control':path.startsWith('/models/')?'public, max-age=86400':'no-cache','x-content-type-options':'nosniff','content-length':String(bytes.length),'accept-ranges':'bytes'};
+  // Safari requests byte ranges for inline video, including the initial probe.
+  const range=request.headers.get('range');
+  if(request.method==='GET'&&range){
+   const match=/^bytes=(\d*)-(\d*)$/.exec(range);
+   if(match&&(match[1]||match[2])){
+    const length=bytes.length,start=match[1]?Number(match[1]):Math.max(0,length-Number(match[2])),end=match[1]?(match[2]?Math.min(length-1,Number(match[2])):length-1):length-1;
+    if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start>=length||start>end)return new Response(null,{status:416,headers:{...headers,'content-length':'0','content-range':`bytes */${length}`}});
+    headers['content-range']=`bytes ${start}-${end}/${length}`;headers['content-length']=String(end-start+1);
+    return new Response(bytes.slice(start,end+1),{status:206,headers});
+   }
+  }
+  return new Response(request.method==='HEAD'?null:bytes,{headers});
  }
 };
