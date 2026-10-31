@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {cameraToMirror,faceToMirror,bothEyesVisible,facingMirror,FaceTracker} from '../assets/tracker.js';
+import {cameraToMirror,faceToMirror,bothEyesVisible,facingMirror,FaceTracker,scanFaceToMirror} from '../assets/tracker.js';
 // The full camera is tracked; only the mirror view is cropped and reflected.
 assert.deepEqual(cameraToMirror({x:.5,y:.5},4/3,3/4),{x:.5,y:.5});
 const left=cameraToMirror({x:0,y:.5},4/3,3/4),right=cameraToMirror({x:1,y:.5},4/3,3/4);
@@ -32,7 +32,14 @@ console.log('PASS: broad head-facing check, side/up/down rejection, roll toleran
 let worker,resolveBitmap;const messages=[];globalThis.Worker=class{constructor(){worker=this}postMessage(data){messages.push(data)}};
 globalThis.createImageBitmap=()=>new Promise(resolve=>{resolveBitmap=resolve});
 const received=[],tracker=new FaceTracker(data=>received.push(data));worker.onmessage({data:{type:'ready',backend:'test'}});await tracker.ready;
-const first=tracker.submit({width:320,height:240},100,3);await tracker.submit({},101,3);assert.equal(messages.length,1,'A frame in flight cannot create an inference queue');
+const mapping={region:{x:0,y:0,width:1280,height:960},sourceWidth:1280,sourceHeight:960};
+const first=tracker.submit({width:320,height:240},100,3,mapping);await tracker.submit({},101,3);assert.equal(messages.length,1,'A frame in flight cannot create an inference queue');
 resolveBitmap({});await first;assert.equal(messages.length,2);assert.equal(messages[1].epoch,3);assert.equal(tracker.busy,true);
-worker.onmessage({data:{type:'result',faces:[]}});assert.equal(tracker.busy,false);assert.equal(received.length,1);
+worker.onmessage({data:{type:'result',faces:[]}});assert.equal(tracker.busy,false);assert.equal(received.length,1);assert.equal(received[0].mapping,mapping,'Result retains geometry from its own scan, not a later framing update');
 console.log('PASS: full-camera crop/mirror eye mapping; one frame in flight, no inference queue');
+
+const outlines={...visible,eyeBounds:[{left:-.01,right:.1,top:.3,bottom:.4},{left:.5,right:.6,top:.3,bottom:.4}]};
+assert.equal(bothEyesVisible(outlines),false,'Eye centres alone cannot pass a clipped eye outline');
+outlines.eyeBounds[0].left=.01;assert.equal(bothEyesVisible(outlines),true);
+assert.equal(bothEyesVisible(outlines,p=>({...p,x:p.x+.45})),false,'Warped eye corners must also stay on screen');
+console.log('PASS: complete eye outlines are required, including after the live warp');

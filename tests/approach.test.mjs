@@ -9,8 +9,8 @@ async function simulate({near,facing,eyes=true,onCue,readyAt=9000}){
  let now=0;const face={width:near ? .6 : .3},scene={facing,eyes},calls=[];
  const ready=()=>{face.width=.6;scene.facing=true;scene.eyes=true};
  const context=vm.createContext({
-  AbortController,activeCue:null,performance:{now:()=>now},startDelayMs:2000,psstBeatMs:700,config:{closeWidth:.45},lastFace:face,run:{facePresent:true},
-  renderer:{projectPoint:p=>p},headFacing:()=>scene.facing,bothEyesVisible:()=>scene.eyes,
+  AbortController,activeCue:null,performance:{now:()=>now},startDelayMs:2000,psstBeatMs:700,config:{closeWidth:.8},lastFace:face,run:{facePresent:true},
+  closeFaceWidth:()=>.6*.8,renderer:{projectPoint:p=>p},headFacing:()=>scene.facing,bothEyesVisible:()=>scene.eyes,
   audio:{duration:()=>.25,stop(){}},$:()=>({hidden:false}),log(){},
   cue(text,id,duration,clipSeconds){calls.push({text,id,at:now,duration,clipSeconds});onCue?.({text,id,face,scene,ready})},
   async delay(ms){now+=ms;if(now>=readyAt)ready();if(now>15000)throw Error('Approach did not finish')}
@@ -24,7 +24,8 @@ for(const [near,facing,id] of [[false,false,'opening'],[false,true,'come'],[true
 const readyViewer=await simulate({near:true,facing:true});
 assert.deepEqual(readyViewer.calls.map(c=>c.text),['Psst. Täällä peilissä. Tule tänne.'],'Already ready viewers still hear the opening cue');
 assert.ok(readyViewer.now>=readyViewer.calls[0].at+readyViewer.calls[0].duration+700,'The opening cue gets a beat before the secret starts');
-assert.ok((await simulate({near:true,facing:true,eyes:false})).calls.slice(1).every(c=>c.id==='here'),'Eyes outside the view require an attention cue');
+assert.ok((await simulate({near:true,facing:true,eyes:false})).calls.slice(1).every(c=>c.id==='opening'),'Eyes outside the view only repeat the complete Psst opening');
+for(const near of [false,true])for(const facing of [false,true])assert.ok((await simulate({near,facing,eyes:false})).calls.every(c=>c.id==='opening'),'Clipped eyes override closeness and head facing');
 let openingCues=0;
 const changing=await simulate({near:false,facing:false,readyAt:Infinity,onCue({id,face,scene,ready}){
  if(id==='opening'){if(openingCues++)scene.facing=true}

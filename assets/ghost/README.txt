@@ -36,3 +36,25 @@ projected through the green-channel warp for the startle placement.
 
 Eyes and glow are painted into the head layer before its single shared opacity
 is applied, so they fade exactly with the apparition instead of overdraw.
+
+Tracked-eye alignment: the eye pair's midpoint and roll drive a smoothed rigid
+translation/rotation. By default tracking applies no scale, keeping configured size fixed. Optional
+Match eye spacing also follows eye distance, with a default minimum tracking
+size of 65% of the configured head. While following eyes, the independent hover/zoom
+pose yields to that alignment. Eye sparkle motion is included in the alignment
+anchor. With no tracked eyes, the existing idle hover/zoom remains available.
+
+Close width is now a fraction of intrinsic ghost face width (measured across
+the sheet at eye height), default 80%. A closeReference marker migrates saved
+screen-width thresholds to the new default. Detection area in debug Effects
+expands the scan from the displayed crop to the full camera without reframing
+the mirror. Scan geometry travels with the in-flight result. Both complete eye
+outlines must be inside the mirror, including its live warp, or only the full
+Psst opening repeats. A clipped eye during narration returns to approach.
+
+Position, shortest-path rotation and optional scale share a frame-rate-independent
+EMA (Tracking smoothing, default 0.45 seconds). Valid on-screen eye samples carry
+their arrival time, so stale results cannot hold the pose forever. After 1.5s
+without visible eyes, the target becomes the default pose and the same EMA tails
+back to it. Pre-startle approach restarts preserve the tail; a real startle clears
+and suppresses the entire apparition until the next sequence.

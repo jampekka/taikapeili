@@ -26,14 +26,16 @@ self.onmessage=async({data})=>{
     const tensor=faceapi.tf.tensor3d(rgb,[data.height,data.width,3],'int32');
     let detections;try{detections=await faceapi.detectAllFaces(tensor,new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5})).withFaceLandmarks(true)}finally{tensor.dispose()}
     const eye=points=>({x:points.reduce((s,p)=>s+p.x,0)/points.length/data.width,y:points.reduce((s,p)=>s+p.y,0)/points.length/data.height});
-    const faces=detections.map(d=>{const b=d.detection.box,nose=d.landmarks.getNose()[3];return {center:{x:(b.x+b.width/2)/data.width,y:(b.y+b.height/2)/data.height},width:b.width/data.width,height:b.height/data.height,score:d.detection.score,eyes:[eye(d.landmarks.getLeftEye()),eye(d.landmarks.getRightEye())],nose:{x:nose.x/data.width,y:nose.y/data.height}}}).sort((a,b)=>b.width*b.height-a.width*a.height).slice(0,1);
+    const eyeBounds=points=>({left:Math.min(...points.map(p=>p.x))/data.width,right:Math.max(...points.map(p=>p.x))/data.width,top:Math.min(...points.map(p=>p.y))/data.height,bottom:Math.max(...points.map(p=>p.y))/data.height});
+    const faces=detections.map(d=>{const b=d.detection.box,nose=d.landmarks.getNose()[3],left=d.landmarks.getLeftEye(),right=d.landmarks.getRightEye();return {center:{x:(b.x+b.width/2)/data.width,y:(b.y+b.height/2)/data.height},width:b.width/data.width,height:b.height/data.height,score:d.detection.score,eyes:[eye(left),eye(right)],eyeBounds:[eyeBounds(left),eyeBounds(right)],nose:{x:nose.x/data.width,y:nose.y/data.height}}}).sort((a,b)=>b.width*b.height-a.width*a.height).slice(0,1);
     self.postMessage({type:'result',faces,epoch:data.epoch,width:data.width,height:data.height,sampledAt:data.timestamp,inferenceMs:performance.now()-began});return;
    }
    try{result=tracker.detectForVideo(data.image,data.timestamp)}finally{data.image.close()}
    const faces=result.faceLandmarks.map(points=>{
     const xs=points.map(p=>p.x),ys=points.map(p=>p.y),left=Math.min(...xs),right=Math.max(...xs),top=Math.min(...ys),bottom=Math.max(...ys);
     const mid=(a,b)=>({x:(points[a].x+points[b].x)/2,y:(points[a].y+points[b].y)/2});
-    return {center:{x:(left+right)/2,y:(top+bottom)/2},width:right-left,height:bottom-top,score:1,eyes:[mid(33,133),mid(362,263)],nose:{x:points[1].x,y:points[1].y}};
+    const eyeBounds=indices=>{const ps=indices.map(i=>points[i]);return {left:Math.min(...ps.map(p=>p.x)),right:Math.max(...ps.map(p=>p.x)),top:Math.min(...ps.map(p=>p.y)),bottom:Math.max(...ps.map(p=>p.y))}};
+    return {center:{x:(left+right)/2,y:(top+bottom)/2},width:right-left,height:bottom-top,score:1,eyes:[mid(33,133),mid(362,263)],eyeBounds:[eyeBounds([33,7,163,144,145,153,154,155,133,246,161,160,159,158,157,173]),eyeBounds([263,249,390,373,374,380,381,382,362,466,388,387,386,385,384,398])],nose:{x:points[1].x,y:points[1].y}};
    });
    self.postMessage({type:'result',faces,epoch:data.epoch,width:data.width,height:data.height,sampledAt:data.timestamp,inferenceMs:performance.now()-began});
   }

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import {loadSettings,saveSettings,EFFECT_CONTROLS} from '../assets/settings.js';
-import {CAMERA_CONTROLS} from '../assets/camera-view.js';
+import {CAMERA_CONTROLS,DETECTION_CONTROLS} from '../assets/camera-view.js';
 import {GHOST_CONTROLS} from '../assets/ghost.js';
 import {SCREAMS} from '../assets/screams.js';
 let value;const storage={getItem(){return value},setItem(key,data){value=data}};
 const defaults=loadSettings(storage);
-assert.deepEqual(defaults,{cameraZoom:1,cameraPanX:0,cameraPanY:0,morph:1,morphSpeed:.9,rgbSplit:.77,sourcePunch:1.62,rippleStrength:1.78,rippleReach:2,sourceWander:1,lampBrightness:1,ghostRevision:3,ghostEnabled:true,lampBlinking:true,ghostOpacity:.9,ghostSize:1.15,ghostHover:1,ghostEyeGlow:1,ghostStyle:'soft',volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.5,ending:'secret'});
-for(const c of [...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS]){saveSettings({...defaults,[c.key]:c.max},storage);assert.equal(loadSettings(storage)[c.key],c.max);saveSettings({...defaults,[c.key]:-99},storage);assert.equal(loadSettings(storage)[c.key],c.min)}
+assert.deepEqual(defaults,{cameraZoom:1,cameraPanX:0,cameraPanY:0,detectionArea:0,morph:1,morphSpeed:.9,rgbSplit:.77,sourcePunch:1.62,rippleStrength:1.78,rippleReach:2,sourceWander:1,lampBrightness:1,ghostRevision:3,ghostEnabled:true,ghostScaleToEyes:false,lampBlinking:true,ghostOpacity:.9,ghostSize:1.15,ghostHover:1,ghostEyeGlow:1,ghostMinScale:.65,ghostFollowSeconds:.45,ghostStyle:'soft',volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeReference:'ghost',closeWidth:.8,ending:'secret'});
+for(const c of [...EFFECT_CONTROLS,...CAMERA_CONTROLS,...DETECTION_CONTROLS,...GHOST_CONTROLS]){saveSettings({...defaults,[c.key]:c.max},storage);assert.equal(loadSettings(storage)[c.key],c.max);saveSettings({...defaults,[c.key]:-99},storage);assert.equal(loadSettings(storage)[c.key],c.min)}
 saveSettings({...defaults,ghostEnabled:false,ghostStyle:'classic'},storage);assert.equal(loadSettings(storage).ghostEnabled,false);assert.equal(loadSettings(storage).ghostStyle,'classic');
 value=JSON.stringify({ghostEnabled:false,ghostOpacity:.1,ghostSize:.4,ghostStyle:'classic',volume:.4,closeWidth:.5});
 assert.deepEqual(loadSettings(storage),{...defaults,ghostStyle:'classic',volume:.4},'Previously saved faint/disabled ghosts upgrade without changing the other settings');
@@ -20,7 +20,9 @@ for(const encore of ['off','short','original']){saveSettings({...defaults,encore
 value=JSON.stringify({encore:'invalid'});assert.equal(loadSettings(storage).encore,defaults.encore);
 for(const scream of Object.keys(SCREAMS)){saveSettings({...defaults,scream},storage);assert.equal(loadSettings(storage).scream,scream)}
 value=JSON.stringify({scream:'invalid'});assert.equal(loadSettings(storage).scream,defaults.scream);
+value=JSON.stringify({closeWidth:.5});assert.equal(loadSettings(storage).closeWidth,.8,'Old screen-relative closeness migrates to 80% of the ghost face');
+value=JSON.stringify({...defaults,closeWidth:2});assert.equal(loadSettings(storage).closeWidth,1.5);
 value='{broken';assert.deepEqual(loadSettings(storage),defaults);
-value=JSON.stringify({volume:4,morph:-1,closeWidth:.01,ending:'unknown',texts:'false'});assert.deepEqual(loadSettings(storage),{...defaults,volume:1,morph:0,closeWidth:.2});
+value=JSON.stringify({volume:4,morph:-1,closeReference:'ghost',closeWidth:.01,ending:'unknown',texts:'false'});assert.deepEqual(loadSettings(storage),{...defaults,volume:1,morph:0,closeWidth:.2});
 const blocked={getItem(){throw Error('blocked')},setItem(){throw Error('blocked')}};assert.deepEqual(loadSettings(blocked),defaults);assert.equal(saveSettings(defaults,blocked),false);
 console.log('PASS: saved settings round trip, bounded values, malformed/blocked storage fallback, no paid-provider persistence');

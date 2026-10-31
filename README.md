@@ -1,5 +1,19 @@
 ## Hard interaction requirement
 
+Current framing: debug → Effects → Camera framing has a Detection area slider
+from Screen only to Full camera. It widens the tracking scan independently of
+the displayed/captured crop. Landmark coordinates are mapped back through the
+scan rectangle and current mirror crop, including off-screen eye outlines. The
+ghost follows the eye midpoint and head roll with position/rotation only; its
+configured size does not track viewer distance unless Match eye spacing is
+enabled. Minimum tracking size defaults to 65%; position, angle and optional
+scale use an adjustable EMA (0.45s by default). Lost eyes hold the last target
+for 1.5s, then ease back to the default pose with the same EMA. Closeness defaults to 80% of
+the actual ghost face width. Old screen-relative thresholds migrate to 80%.
+Until both complete eyes are visible, only the full Psst opening is used. If
+an eye leaves the mirror during pre-startle narration, approach restarts.
+
+
 The public mirror is camera driven after the required audio/camera startup. All operator settings, camera framing, effect controls, and debug controls are available ONLY with an explicit `?debug=1` URL. Never add a settings button, secret gesture, or debug entry to the public experience. Public controls are hidden in HTML/CSS and only initialized in debug mode.
 
 For a Home Screen debug app, open `/?debug=1` in Safari and add that page to Home Screen. The server supplies a separate debug manifest with a debug start URL and identity; the ordinary app always starts without debug. After tuning in the debug app, use its operator-only “Run mirror” button to reload in public mode using the same app storage. There is no return control; reopening the explicit debug shortcut is required.

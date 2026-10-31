@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import {ghostVisible,ghostLayout,GhostOverlay,smoothGhostVoice,ghostMotion,ghostGaze} from '../assets/ghost.js';
+import {ghostVisible,ghostLayout,GhostOverlay,smoothGhostVoice,ghostMotion,ghostGaze,ghostEyePose,ghostFaceWidth,GHOST_STYLES,followGhostPose} from '../assets/ghost.js';
 assert.equal(ghostVisible('approach',false),false,'Keep the initial lead-in empty');
 for(const state of ['approach','running'])assert.equal(ghostVisible(state,true),true);
 for(const state of ['reveal','after','instruction','error','finished'])assert.equal(ghostVisible(state,true,true),false,'Preview cannot override a scare blackout');
@@ -54,7 +54,7 @@ console.log('PASS: ghost timing, safe layout, still fallback and immediate scare
 
 const drawRoutine=app.slice(app.indexOf('function drawGhost('),app.indexOf('const renderer=new MirrorRenderer'));
 let drawnOptions;
-const view=vm.createContext({source:{},config:{ghostEnabled:true,ghostOpacity:.9,ghostSize:1.15,ghostStyle:'soft'},run:{state:'idle'},debug:false,activeCue:null,ghostPreviewUntil:0,audio:{speaking:true},renderer:{speechPulse:0},ghostVisible,ghost:{draw(now,options){drawnOptions=options}}});
+const view=vm.createContext({source:{},config:{ghostEnabled:true,ghostOpacity:.9,ghostSize:1.15,ghostStyle:'soft'},run:{state:'idle'},debug:false,lastFace:null,stats:{eyesSeenAt:0},bothEyesVisible:()=>false,activeCue:null,ghostPreviewUntil:0,audio:{speaking:true},renderer:{speechPulse:0},ghostVisible,ghost:{draw(now,options){drawnOptions=options}}});
 vm.runInContext(drawRoutine+';drawGhost(0)',view);assert.equal(drawnOptions.visible,true,'Actual playback shows the ghost even during silent syllable gaps and outside a sequence');
 
 let envelope=0;for(let i=0;i<800;i++)envelope=smoothGhostVoice(envelope,.4,10);
@@ -70,3 +70,47 @@ assert.deepEqual(ghostMotion(0,0),{x:0,y:0,rotation:0,scale:1});
 assert.deepEqual(ghostGaze(800),ghostGaze(2200),'Eyes fixate between brief small saccades');
 view.ghost.suppressed=true;vm.runInContext('drawGhost(3000)',view);assert.equal(drawnOptions.visible,false,'App respects the post-startle latch even when a voice test is playing');
 console.log('PASS: bounded hover/saccades, live long-window voice fade and post-startle suppression until next approach');
+
+for(const [w,h] of [[768,1024],[1024,768]])for(const style of Object.values(GHOST_STYLES))for(const angle of [-.5,0,.5]){
+ const layout=ghostLayout(w,h),gaze={x:.003,y:-.002},cx=w*.42,cy=h*.38;
+ let reference;
+ for(const span of [40,100,250]){
+  const eyes=[-1,1].map(side=>({x:(cx+side*Math.cos(angle)*span/2)/w,y:(cy+side*Math.sin(angle)*span/2)/h}));
+  const pose=ghostEyePose(eyes,w,h,layout,style,gaze);assert.equal(pose.scale,1,'Viewer distance must never scale the ghost');
+  assert.ok(Math.abs(pose.rotation-angle)<1e-10);
+  const px=((style.eyeX[0]+style.eyeX[1])/2+gaze.x-.5)*layout.width,py=(.1+.8*style.eyeY+gaze.y-.5)*layout.height;
+  assert.ok(Math.abs(pose.cx+px*Math.cos(pose.rotation)-py*Math.sin(pose.rotation)-cx)<1e-9);
+  assert.ok(Math.abs(pose.cy+px*Math.sin(pose.rotation)+py*Math.cos(pose.rotation)-cy)<1e-9,'Ghost eye midpoint coincides with the viewer eye midpoint');
+  if(reference)assert.ok(Math.hypot(pose.cx-reference.cx,pose.cy-reference.cy)<1e-9,'Changing only eye distance changes neither placement nor size');
+  reference=pose;
+ }
+}
+assert.equal(ghostEyePose(null,768,1024,ghostLayout(768,1024),GHOST_STYLES.soft),null);
+for(const name of Object.keys(GHOST_STYLES)){
+ const actual=ghostFaceWidth(768,1024,1.15,name);assert.ok(actual>0&&actual<ghostLayout(768,1024).width/768,'Face width excludes transparent frame margins');
+ assert.equal(ghostFaceWidth(384,512,1.15,name),actual,'Closeness reference is independent of render resolution');
+}
+console.log('PASS: fixed-size rigid eye alignment, head tilt, gaze compensation and intrinsic ghost face width');
+
+const basePose={x:.5,y:.4,rotation:Math.PI-.02,scale:1},newPose={x:.7,y:.6,rotation:-Math.PI+.02,scale:.65};
+const oneStep=followGhostPose(basePose,newPose,450,.45);let manySteps=basePose;
+for(let i=0;i<45;i++)manySteps=followGhostPose(manySteps,newPose,10,.45);
+assert.ok(Math.abs(oneStep.x-manySteps.x)<1e-10&&Math.abs(oneStep.scale-manySteps.scale)<1e-10,'EMA follows the same path at different frame rates');
+assert.ok(oneStep.x>.5&&oneStep.x<.7&&oneStep.scale>.65&&oneStep.scale<1,'Position and scale tail their targets instead of jumping');
+assert.ok(Math.abs(oneStep.rotation-basePose.rotation)<.04,'Rotation follows the short path across the angle wrap');
+const layout=ghostLayout(768,1024),style=GHOST_STYLES.soft,eyeSpan=(style.eyeX[1]-style.eyeX[0])*layout.width;
+const eyesAtSpan=span=>[{x:.6-span/768/2,y:.55},{x:.6+span/768/2,y:.55}];
+assert.equal(ghostEyePose(eyesAtSpan(eyeSpan*.2),768,1024,layout,style,{x:0,y:0},{scaleToEyes:true,minScale:.65}).scale,.65);
+assert.ok(Math.abs(ghostEyePose(eyesAtSpan(eyeSpan*1.3),768,1024,layout,style,{x:0,y:0},{scaleToEyes:true,minScale:.65}).scale-1.3)<1e-10,'Optional scale matches eye distance above the minimum');
+const trailing=new GhostOverlay(canvas,{reduced:true});
+for(let at=0;at<=3000;at+=100)trailing.draw(at,{visible:true,voice:.4,eyes:eyesAtSpan(eyeSpan),eyesAt:at,followSeconds:.45});
+const tracked={...trailing.followPose};assert.ok(Math.abs(tracked.x-.6)<.001);
+for(let at=3100;at<=4400;at+=100)trailing.draw(at,{visible:true,voice:.4,eyes:null,followSeconds:.45});
+assert.ok(Math.abs(trailing.followPose.x-.6)<.001,'Brief tracking loss holds the last eye target');
+trailing.draw(4600,{visible:true,voice:.4,eyes:null,followSeconds:.45});
+assert.ok(trailing.followPose.x<.6&&trailing.followPose.x>.5,'After 1.5s loss the return begins smoothly');
+for(let at=4700;at<=7000;at+=100)trailing.draw(at,{visible:true,voice:.4,eyes:null,followSeconds:.45});
+assert.ok(Math.abs(trailing.followPose.x-.5)<.01,'Sustained loss eases back to the default pose');
+trailing.draw(7100,{visible:true,voice:.4,eyes:eyesAtSpan(eyeSpan),eyesAt:3000,followSeconds:.45});
+assert.equal(trailing.followEyes,null,'A stale tracker result cannot pin the ghost indefinitely');
+console.log('PASS: optional minimum scale, EMA tailing, angle wrap, tracking-loss hold and smooth return');
