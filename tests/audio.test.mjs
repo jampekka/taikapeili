@@ -39,7 +39,7 @@ try{
  audio.play();assert.equal(audio.speechLevel(),0,'Scream cannot drive speaking animation');
  audio.warning();assert.ok(audio.speechLevel()>.99,'Ending speech also drives the pulse');audio.stop('instruction');assert.equal(audio.speechLevel(),0);
  audio.context.state='interrupted';audio.context.onstatechange?.();assert.equal(audio.status,'locked');await audio.unlock();assert.equal(audio.say('come'),'come','Resume after interruption retains decoded whispers');
- globalThis.fetch=async path=>new Response(path,{status:!failed&&path.includes('look-deeper')?503:200});
+ globalThis.fetch=async path=>new Response(path,{status:!failed&&path.includes('look-into-eyes')?503:200});
  const retry=new HorrorAudio();await assert.rejects(retry.prepare(),/Audio unavailable/);assert.equal(retry.status,'sample error');failed=true;await retry.unlock();assert.equal(retry.ready,true);assert.equal(retry.say('look'),'look','A failed asset load is retryable');
 }finally{globalThis.fetch=realFetch;globalThis.window=realWindow}
 console.log('PASS: deferred loading, all-clip readiness, all three whispers, scream, interrupted context resume and failed-clip retry');

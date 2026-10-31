@@ -20,3 +20,5 @@ Selectable generated screams: scream-sharp.mp3, scream-shrill.mp3, scream-raw.mp
 
 opening.mp3: “Psst. Täällä peilissä. Tule tänne.” Generated once via OpenRouter, ElevenLabs eleven-v4, Sarah, Finnish, whisper direction, seed 17, stability 0.5, similarity 0.75, style 0.45, 2026-10-31.
 look-here.mp3: “Katso tänne.” Generated once with the same Sarah voice, Finnish, whispering direction, style 0.65, 2026-10-31. The original come-closer.mp3 “Tule lähemmäksi.” is retained. The approach selects the applicable bundled recording from viewer distance and head-facing status; no runtime generation.
+
+look-into-eyes.mp3: “Katso syvälle silmiin.” Generated once via OpenRouter, ElevenLabs eleven-v4, Sarah, Finnish, [whispering], seed 17, stability 0.5, similarity boost 0.75, 2026-10-31. Scribe v2 transcription verified the exact words. This bundled clip replaces look-deeper.mp3 as the final pre-startle look cue; approach “Katso tänne.” is retained. No runtime synthesis.

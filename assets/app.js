@@ -84,7 +84,8 @@ async function approach(signal){
 async function sequence(signal){
  const secretMs=Math.ceil(audio.duration('secret',6)*1000)+650;
  cue('Näytän sinulle salaisuuden, älä kerro tästä kellekään.','secret',secretMs);await delay(secretMs,signal);
- cue(config.ghostEnabled?'Katso tänne.':'Katso syvälle silmiisi.',config.ghostEnabled?'here':'look',lookMs);await delay(lookMs,signal);
+ const lookDuration=Math.max(lookMs,Math.ceil(audio.duration('look',4)*1000)+250);
+ cue('Katso syvälle silmiin.','look',lookDuration);await delay(lookDuration,signal);
  activeCue=null;$('ritualText').hidden=true;log('Sequence finished');updateDebug();
 }
 async function loadDetector(){

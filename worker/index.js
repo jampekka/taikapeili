@@ -3,20 +3,6 @@ const responseJSON=(body,status=200)=>new Response(JSON.stringify(body),{status,
 export default {
  async fetch(request,env){
   const url=new URL(request.url);
-  // Temporary, authenticated build job for this one bundled voice line.
-  if(url.pathname==='/api/operator/look-eyes-voice'){
-   if(request.method!=='POST'||Date.now()>1793440017073)return new Response('Not found',{status:404});
-   const bearer=request.headers.get('authorization')||'',token=bearer.startsWith('Bearer ')?bearer.slice(7):'';
-   if(token.length!==64)return new Response('Not found',{status:404});
-   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))),v=>v.toString(16).padStart(2,'0')).join('');
-   if(digest!=='8fd515091d9f17e978d0503b29cdb7ae40c554dd9c616ea73d60a22730506da2')return new Response('Not found',{status:404});
-   const response=await fetch('https://openrouter.ai/api/v1/audio/speech',{method:'POST',headers:{authorization:'Bearer '+env.OPENROUTER_API_KEY,'content-type':'application/json'},body:JSON.stringify({model:'elevenlabs/eleven-v4',voice:'sarah',input:'[whispering] Katso syvälle silmiin.',response_format:'mp3',provider:{options:{elevenlabs:{seed:17,language_code:'fi',voice_settings:{stability:.5,similarity_boost:.75}}}}})});
-   if(!response.ok)return responseJSON({error:'Voice generation failed',status:response.status},502);
-   const bytes=new Uint8Array(await response.arrayBuffer());let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);const encoded=btoa(binary);
-   const check=await fetch('https://openrouter.ai/api/v1/audio/transcriptions',{method:'POST',headers:{authorization:'Bearer '+env.OPENROUTER_API_KEY,'content-type':'application/json'},body:JSON.stringify({model:'elevenlabs/scribe-v2',input_audio:{data:encoded,format:'mp3'}})});
-   const verification=check.ok?await check.json():{text:null};
-   return responseJSON({audio:encoded,transcript:verification.text||null});
-  }
   if(url.pathname==='/api/mirror/config'){
    if(request.method!=='GET')return responseJSON({error:'Method not allowed'},405);
    return responseJSON({configured:false,provider:'local'});
