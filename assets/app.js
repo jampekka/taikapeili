@@ -49,7 +49,7 @@ function log(message){events.unshift(`${new Date().toLocaleTimeString()} ${safeE
 function ghostWidth(){const rect=glass.getBoundingClientRect();return ghostFaceWidth(rect.width,rect.height,config.ghostSize,config.ghostStyle)*(config.ghostScaleToEyes?ghost.trackingScale:1)}
 function closeFaceWidth(){return config.closeWidth*ghostWidth()}
 function headFacing(){const rect=glass.getBoundingClientRect();return facingMirror(lastFace,rect.width/Math.max(1,rect.height))}
-function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width/Math.max(.001,ghostWidth())*100)+'% of ghost':'no face'} · guide ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`lamps       ${renderer.lampsReady?'warped':'overlay'}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`ghost       ${config.ghostEnabled?ghost.status:'off'}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
+function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width/Math.max(.001,ghostWidth())*100)+'% of ghost':'no face'} · close at ${Math.round(config.closeWidth*100)}% of ghost`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`lamps       ${renderer.lampsReady?'warped':'overlay'}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`ghost       ${config.ghostEnabled?ghost.status:'off'}`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
 function playActiveCue(){
  if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
  const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
@@ -66,15 +66,32 @@ function cue(text,id,duration){
  log(text);playActiveCue();
 }
 async function approach(signal){
- const openingMs=Math.ceil(audio.duration('opening',3.3)*1000);
- await run.finishLine(signal,async()=>{cue('Psst. Täällä peilissä. Tule tänne.','opening',openingMs);await delay(openingMs,signal)});
- activeCue=null;$('ritualText').hidden=true;audio.stop('whisper');log('Opening finished → secret');
+ const prompts={opening:'Psst. Täällä peilissä. Tule tänne.',come:'Tule lähemmäksi.',here:'Katso tänne.'};
+ const speak=async id=>{const duration=Math.ceil(audio.duration(id,3)*1000);await run.finishLine(signal,async()=>{cue(prompts[id],id,duration);await delay(duration,signal)})};
+ // Start the complete opening on the first detection, with no lead-in.
+ await speak('opening');await delay(700,signal);
+ let nextPromptAt=performance.now();
+ while(true){
+  const now=performance.now(),near=run.facePresent&&lastFace?.width>=closeFaceWidth(),eyesIn=run.facePresent&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye)),looking=eyesIn&&headFacing();
+  const id=!eyesIn?'opening':near?(looking?null:'here'):(looking?'come':'opening');
+  if(!id)break;
+  if(run.facePresent&&now>=nextPromptAt){await speak(id);nextPromptAt=performance.now()+1200;continue}
+  await delay(100,signal);
+ }
+ activeCue=null;$('ritualText').hidden=true;audio.stop('whisper');log('Close enough → secret');
 }
 async function sequence(signal){
- const secretMs=Math.ceil(audio.duration('secret',6)*1000)+650;
- await run.finishLine(signal,async()=>{cue('Näytän sinulle salaisuuden, älä kerro tästä kellekään.','secret',secretMs);await delay(secretMs,signal)});
- const lookDuration=Math.max(lookMs,Math.ceil(audio.duration('look',4)*1000)+250);
- await run.finishLine(signal,async()=>{cue('Katso syvälle silmiin.','look',lookDuration);await delay(lookDuration,signal)});
+ // Recheck clipped eyes only after the current line has completely finished.
+ const eyesIn=()=>run.facePresent&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye));
+ while(true){
+  const secretMs=Math.ceil(audio.duration('secret',6)*1000)+650;
+  await run.finishLine(signal,async()=>{cue('Näytän sinulle salaisuuden, älä kerro tästä kellekään.','secret',secretMs);await delay(secretMs,signal)});
+  if(!eyesIn()){await approach(signal);continue}
+  const lookDuration=Math.max(lookMs,Math.ceil(audio.duration('look',4)*1000)+250);
+  await run.finishLine(signal,async()=>{cue('Katso syvälle silmiin.','look',lookDuration);await delay(lookDuration,signal)});
+  if(!eyesIn()){await approach(signal);continue}
+  break;
+ }
  activeCue=null;$('ritualText').hidden=true;log('Sequence finished');updateDebug();
 }
 async function loadDetector(){
@@ -160,7 +177,7 @@ function drawTracking(faces){
  const face=faces[0],center=face?.center||{x:.5,y:.5},required=closeFaceWidth(),guideHeight=face?face.height*required/face.width:required*w/h*1.3;
  t.strokeStyle='#ffc36a';t.lineWidth=1.5;t.setLineDash([7,5]);outline(center,required,guideHeight);t.setLineDash([]);
  const label=renderer.projectPoint({x:center.x-required/2,y:center.y-guideHeight/2});
- t.font='12px system-ui';t.fillStyle='#ffc36a';t.fillText(`Guide: ${Math.round(config.closeWidth*100)}% of ghost face`,Math.max(8,Math.min(w-190,label.x*w)),Math.max(18,label.y*h-8));
+ t.font='12px system-ui';t.fillStyle='#ffc36a';t.fillText(`Close: ${Math.round(config.closeWidth*100)}% of ghost face`,Math.max(8,Math.min(w-190,label.x*w)),Math.max(18,label.y*h-8));
  t.strokeStyle='#9dffb0';t.lineWidth=2;
  for(const f of faces){
   outline(f.center,f.width,f.height);

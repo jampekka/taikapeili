@@ -11,7 +11,7 @@ scale use an adjustable EMA (0.45s by default). Lost eyes hold the last target
 for 1.5s, then ease back to the default pose with the same EMA. Closeness defaults to 80% of
 the actual ghost face width. Old screen-relative thresholds migrate to 80%.
 The first detected face starts the full Psst opening immediately. Distance,
-head facing and eye visibility never delay or restart narration.
+head facing and eye visibility control subsequent prompts and progression.
 
 
 The public mirror is camera driven after the required audio/camera startup. All operator settings, camera framing, effect controls, and debug controls are available ONLY with an explicit `?debug=1` URL. Never add a settings button, secret gesture, or debug entry to the public experience. Public controls are hidden in HTML/CSS and only initialized in debug mode.
@@ -24,7 +24,7 @@ Dummy mode is the default on every page load. It makes no image API calls. The U
 
 ## One run
 
-`assets/run.js` owns the lifecycle. The first detected face while armed starts the full “Psst. Täällä peilissä. Tule tänne.” opening immediately, without a lead-in or position, distance, head-facing or eye-visibility gate. When the opening recording finishes, the secret/look sequence proceeds once. Clipped eyes never restart narration. Eye tracking continues to animate and align the ghost, and the saved width setting is only a debug guide. One second without a face requests cancellation and rearms it; an active spoken line always finishes first. At its end, a still-absent viewer stops the sequence before the next line or capture, while a returning viewer continues; a continuously present face cannot repeat it. Lamp blinking remains optional, and reveal blackout retains priority.
+`assets/run.js` owns the lifecycle. The first detected face while armed starts the complete “Psst. Täällä peilissä. Tule tänne.” opening immediately, with no initial delay. Subsequent prompts retain the position-based mechanism: facing the mirror but far away gives “Tule lähemmäksi.”; close but facing away gives “Katso tänne.”; facing away and far, or either eye outside the mirror, repeats the full Psst opening. Prompts repeat with 1.2 seconds between recordings. The secret/look/startle sequence waits until the viewer is close, facing the mirror and has both eyes in view. Every spoken line finishes even if conditions change mid-line. Clipped eyes during narration return to approach only at a line boundary. One second without a face requests cancellation and rearms it, but cancellation waits for the current line to finish; returning before its end allows continuation. A continuously present face cannot repeat the scare. Lamp blinking remains optional, and reveal blackout retains priority.
 
 ## Tracking and reveal
 
