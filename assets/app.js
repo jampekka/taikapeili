@@ -6,7 +6,6 @@ import {MirrorRenderer} from './renderer.js';
 import {MirrorRun,delay} from './run.js';
 import {loadSettings,saveSettings,ENDINGS,EFFECT_CONTROLS} from './settings.js';
 import {ScreenWakeLock} from './wake-lock.js';
-import {enterFullscreen} from './fullscreen.js';
 import {layoutLights,approachBlinks} from './lights.js';
 import {HorrorAudio} from './audio.js';
 import {SCREAMS} from './screams.js';
@@ -27,15 +26,16 @@ const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alp
 let ghostPreviewUntil=0;
 const ghost=new GhostOverlay($('ghost'),{reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 function drawGhost(now){
- const visible=!!source&&config.ghostEnabled&&ghostVisible(run.state,!!activeCue,debug&&now<ghostPreviewUntil,audio.speaking);
- ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.speechPulse,opacity:config.ghostOpacity,size:config.ghostSize,style:config.ghostStyle});
+ const visible=!!source&&config.ghostEnabled&&!ghost.suppressed&&ghostVisible(run.state,!!activeCue,debug&&now<ghostPreviewUntil,audio.speaking);
+ ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.reduced?audio.speechLevel():renderer.speechPulse,preview:debug&&now<ghostPreviewUntil,hover:config.ghostHover,eyeGlow:config.ghostEyeGlow,opacity:config.ghostOpacity,size:config.ghostSize,style:config.ghostStyle});
  renderer.ghostTarget=ghost.target;
 }
 const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:now=>{drawGhost(now);lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 renderer.strength=config.morph;
 renderer.effects=config;
 const run=new MirrorRun(state=>{
- if(state==='reveal'){ghost.clear();renderer.ghostTarget=null}
+ ghost.setPhase(state);
+ if(state==='reveal'){ghostPreviewUntil=0;renderer.ghostTarget=null}
  if(state!=='approach'){approachPulse?.cancel();approachPulse=null}
  mirror.dataset.phase=state==='running'?'processing':state==='reveal'?'reveal':'live';
  mirror.dataset.requesting=String(state==='running');
@@ -56,7 +56,7 @@ function playActiveCue(){
 }
 function cue(text,id,duration){
  activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
- if(id==='opening'||id==='come'||id==='here'){
+ if(config.lampBlinking&&(id==='opening'||id==='come'||id==='here')){
   approachPulse?.cancel();
   const flashes=renderer.reduced?[{opacity:1},{opacity:.85,offset:.45},{opacity:1}]:approachBlinks(duration);
   approachPulse=lightFrame.animate(flashes,{duration,easing:renderer.reduced?'ease-in-out':'linear'});
@@ -208,18 +208,16 @@ function updateAudioPrompt(){
  else{if(source||starting)stop();$('audioGateMessage').textContent=audio.error?'Äänten lataus epäonnistui. Yritä uudelleen.':'Napauta avataksesi peilin ja käynnistääksesi äänet.'}
 }
 audio.onStateChange=updateAudioPrompt;
-async function unlock(fullscreen=false){
+async function unlock(){
  $('startMirror').disabled=true;
  try{
   const unlocked=audio.unlock();
-  // Both browser APIs are called within the original user gesture.
-  if(fullscreen)void enterFullscreen().then(entered=>{if(debug)log(entered?'Fullscreen entered':'Fullscreen unavailable or declined')});
   if(!await unlocked)throw new Error('Audio is still locked');updateAudioPrompt();
  }
  catch(error){$('audioGateMessage').textContent=safeError(error)}
  finally{$('startMirror').disabled=false}
 }
-$('startMirror').addEventListener('click',()=>unlock(true));
+$('startMirror').addEventListener('click',()=>unlock());
 $('enable').addEventListener('click',()=>{stop();updateAudioPrompt()});$('retry').addEventListener('click',()=>{$('runError').hidden=true;run.reset()});
 function showCloseWidth(){
  const percent=Math.round(config.closeWidth*100);$('closeWidthValue').textContent=percent+'%';$('closeWidth').setAttribute('aria-valuetext',percent+'% of mirror width');
@@ -232,7 +230,7 @@ const effectsPanel=$('effectsPanel');
 function syncEffects(){
  renderer.strength=config.morph;
  for(const control of [...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS]){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=control.key==='cameraZoom'?config[control.key].toFixed(2)+'×':Math.round(config[control.key]*100)+'%'}
- $('morph').value=Math.round(config.morph*100);$('ghostEnabled').checked=config.ghostEnabled;$('ghostStyle').value=config.ghostStyle;
+ $('morph').value=Math.round(config.morph*100);$('ghostEnabled').checked=config.ghostEnabled;$('ghostStyle').value=config.ghostStyle;$('lampBlinking').checked=config.lampBlinking;
 }
 if(debug){
  document.documentElement.dataset.debug='true';$('openEffects').hidden=false;
@@ -246,6 +244,7 @@ for(const control of [...CAMERA_CONTROLS,...EFFECT_CONTROLS,...GHOST_CONTROLS]){
 }
 for(const [value,style] of Object.entries(GHOST_STYLES)){const option=document.createElement('option');option.value=value;option.textContent=style.label;$('ghostStyle').append(option)}
 syncEffects();
+$('lampBlinking').addEventListener('change',e=>{config.lampBlinking=e.target.checked;if(!config.lampBlinking){approachPulse?.cancel();approachPulse=null}persistSettings()});
 $('ghostStyle').addEventListener('change',e=>{config.ghostStyle=e.target.value;persistSettings()});
 $('ghostEnabled').addEventListener('change',e=>{config.ghostEnabled=e.target.checked;persistSettings()});
 $('previewGhost').addEventListener('click',async()=>{ghostPreviewUntil=performance.now()+8000;await audio.unlock();if(effectsPanel.open)audio.say('here')});
@@ -258,7 +257,6 @@ $('alignEyes').addEventListener('click',()=>{
  Object.assign(config,pan);resetFramingTracking();syncEffects();persistSettings();
  $('cameraStatus').textContent='Framed toward the top camera as far as the crop allows. Increase zoom for more room to pan.';
 });
-$('fullscreenMirror').addEventListener('click',()=>{void enterFullscreen().then(ok=>{$('displayStatus').textContent=ok?'Fullscreen requested.':'For a larger view: Safari → Share → Add to Home Screen, then launch the icon.'})});
 $('openEffects').addEventListener('click',()=>{
  run.reset();renderer.clearReveal();audio.stop();effectsPanel.show();$('openEffects').setAttribute('aria-expanded','true');
 });

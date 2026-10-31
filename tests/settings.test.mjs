@@ -5,11 +5,12 @@ import {GHOST_CONTROLS} from '../assets/ghost.js';
 import {SCREAMS} from '../assets/screams.js';
 let value;const storage={getItem(){return value},setItem(key,data){value=data}};
 const defaults=loadSettings(storage);
-assert.deepEqual(defaults,{cameraZoom:1,cameraPanX:0,cameraPanY:0,morph:1,morphSpeed:.9,rgbSplit:.77,sourcePunch:1.62,rippleStrength:1.78,rippleReach:2,sourceWander:1,lampBrightness:1,ghostRevision:3,ghostEnabled:true,ghostOpacity:.9,ghostSize:1.15,ghostStyle:'soft',volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.5,ending:'secret'});
+assert.deepEqual(defaults,{cameraZoom:1,cameraPanX:0,cameraPanY:0,morph:1,morphSpeed:.9,rgbSplit:.77,sourcePunch:1.62,rippleStrength:1.78,rippleReach:2,sourceWander:1,lampBrightness:1,ghostRevision:3,ghostEnabled:true,lampBlinking:true,ghostOpacity:.9,ghostSize:1.15,ghostHover:1,ghostEyeGlow:1,ghostStyle:'soft',volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.5,ending:'secret'});
 for(const c of [...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS]){saveSettings({...defaults,[c.key]:c.max},storage);assert.equal(loadSettings(storage)[c.key],c.max);saveSettings({...defaults,[c.key]:-99},storage);assert.equal(loadSettings(storage)[c.key],c.min)}
 saveSettings({...defaults,ghostEnabled:false,ghostStyle:'classic'},storage);assert.equal(loadSettings(storage).ghostEnabled,false);assert.equal(loadSettings(storage).ghostStyle,'classic');
 value=JSON.stringify({ghostEnabled:false,ghostOpacity:.1,ghostSize:.4,ghostStyle:'classic',volume:.4,closeWidth:.5});
 assert.deepEqual(loadSettings(storage),{...defaults,ghostStyle:'classic',volume:.4},'Previously saved faint/disabled ghosts upgrade without changing the other settings');
+saveSettings({...defaults,lampBlinking:false},storage);assert.equal(loadSettings(storage).lampBlinking,false);
 value=JSON.stringify({ghostStyle:'invalid'});assert.equal(loadSettings(storage).ghostStyle,'soft');
 assert.equal(saveSettings({...defaults,ending:'secret',encore:'original',scream:'sharpLong',volume:.4,morph:.3,texts:true,boxes:false,closeWidth:.6,provider:'server',model:'paid'},storage),true);
 assert.deepEqual(loadSettings(storage),{...defaults,morph:.3,volume:.4,texts:true,boxes:false,closeWidth:.6,ending:'secret',encore:'original',scream:'sharpLong'});

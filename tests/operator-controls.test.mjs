@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+const app=await readFile(new URL('../assets/app.js',import.meta.url),'utf8');
+const html=await readFile(new URL('../assets/index.html',import.meta.url),'utf8');
+assert.doesNotMatch(app,/enterFullscreen|requestFullscreen|webkitRequestFullscreen/,'Opening the mirror never requests fullscreen');
+assert.ok(!html.includes('id="fullscreenMirror"'),'No manual fullscreen request remains');
+const cue=app.slice(app.indexOf('function cue('),app.indexOf('async function approach('));
+let flashes=0;const config={lampBlinking:false,texts:false};
+const scope=vm.createContext({performance:{now:()=>0},config,activeCue:null,approachPulse:null,renderer:{reduced:false},$:()=>({}),lightFrame:{animate(){flashes++;return {cancel(){}}}},approachBlinks:()=>[],log(){},playActiveCue(){}});
+vm.runInContext(cue+";cue('Psst','opening',1000)",scope);assert.equal(flashes,0,'Disabled lamp blinking never starts an animation');
+config.lampBlinking=true;vm.runInContext("cue('Psst','opening',1000)",scope);assert.equal(flashes,1);
+config.lampBlinking=false;vm.runInContext("cue('Come','come',1000)",scope);assert.equal(flashes,1);
+console.log('PASS: lamp blinking toggle and no automatic/manual fullscreen requests');
