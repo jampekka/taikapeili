@@ -4,6 +4,7 @@ export class HorrorAudio {
  constructor(){this.context=null;this.output=null;this.voices=[];this.volume=.65;this.buffers=new Map();this.error=null;this.onStateChange=()=>{};this.prepare().catch(()=>{})}
  get ready(){return Object.keys(FILES).every(id=>this.buffers.has(id))}
  get status(){if(this.error)return 'sample error';if(!this.context||this.context.state!=='running')return 'locked';return this.ready?'running':'loading samples'}
+ get speaking(){return this.context?.state==='running'&&this.voices.some(v=>v.group==='whisper'||v.group==='instruction')}
  init(){
   if(this.context)return;
   const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw new Error('Web Audio unavailable');

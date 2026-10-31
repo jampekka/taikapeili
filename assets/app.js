@@ -27,7 +27,7 @@ const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alp
 let ghostPreviewUntil=0;
 const ghost=new GhostOverlay($('ghost'),{reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 function drawGhost(now){
- const visible=!!source&&config.ghostEnabled&&ghostVisible(run.state,!!activeCue,debug&&now<ghostPreviewUntil);
+ const visible=!!source&&config.ghostEnabled&&ghostVisible(run.state,!!activeCue,debug&&now<ghostPreviewUntil,audio.speaking);
  ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.speechPulse,opacity:config.ghostOpacity,size:config.ghostSize,style:config.ghostStyle});
  renderer.ghostTarget=ghost.target;
 }
@@ -190,7 +190,7 @@ function stop(){ghostPreviewUntil=0;ghost.clear();renderer.ghostTarget=null;void
 async function start(){
  if(starting||source)return;starting=true;void wakeLock.acquire();const current=++epoch;$('startup').hidden=false;$('enable').hidden=true;$('message').textContent='Opening the mirror…';
  try{
-  const ready=Promise.all([audio.prepare().catch(error=>log(safeError(error))),loadDetector()]);
+  const ready=Promise.all([audio.prepare().catch(error=>log(safeError(error))),ghost.prepare(config.ghostStyle).catch(error=>log('Ghost: '+safeError(error))),loadDetector()]);
   if(fixture){const image=fixture==='portrait'?new Image():document.createElement('canvas');if(fixture==='portrait'){image.src='portrait.jpg';await image.decode()}else{image.width=600;image.height=800;image.getContext('2d').fillRect(0,0,600,800)}if(current!==epoch)return;source=image;
    if(debug&&fixture==='portrait'&&(params.has('move')||params.has('presenceCycle'))){
     const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d'),began=performance.now();

@@ -16,7 +16,7 @@ export const EFFECT_CONTROLS=[
  {key:'sourceWander',label:'Source wandering',min:0,max:1,value:1},
  {key:'lampBrightness',label:'Lamp brightness',min:0,max:1,value:1}
 ];
-const defaults={...Object.fromEntries([...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS].map(c=>[c.key,c.value])),ghostEnabled:true,ghostStyle:'soft',volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.5,ending:'secret'};
+const defaults={...Object.fromEntries([...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS].map(c=>[c.key,c.value])),ghostRevision:3,ghostEnabled:true,ghostStyle:'soft',volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.5,ending:'secret'};
 function clean(value){
  const saved=value&&typeof value==='object'?value:{},result={...defaults};
  for(const [key,min,max] of [...[...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS].map(c=>[c.key,c.min,c.max]),['volume',0,1],['closeWidth',.2,.9]])if(typeof saved[key]==='number'&&Number.isFinite(saved[key]))result[key]=Math.max(min,Math.min(max,saved[key]));
@@ -26,6 +26,8 @@ function clean(value){
  if(Object.hasOwn(GHOST_STYLES,saved.ghostStyle))result.ghostStyle=saved.ghostStyle;
  if(Object.hasOwn(ENDINGS,saved.ending))result.ending=saved.ending;
  if(Object.hasOwn(SCREAMS,saved.scream))result.scream=saved.scream;
+ // Upgrade earlier faint/small apparitions on devices with saved settings.
+ if(saved.ghostRevision!==defaults.ghostRevision){for(const key of ['ghostEnabled','ghostOpacity','ghostSize'])result[key]=defaults[key]}
  return result;
 }
 export function loadSettings(storage){try{return clean(JSON.parse((storage||globalThis.localStorage).getItem(KEY)||'{}'))}catch{return {...defaults}}}

@@ -24,8 +24,8 @@
 /* Public mirror has no operator controls or in-app debug entry. */
 html:not([data-debug]) [data-operator-control]{display:none!important}
 
-/* Screen compositing removes the MP4 black matte over the live mirror. */
-#ghost{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;mix-blend-mode:screen}
+/* Alpha cutout stays visible on bright reflections and iOS video fallback. */
+#ghost{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
 #mirror[data-phase=reveal] #ghost{visibility:hidden}
 .ghost-toggle{display:flex;gap:10px;align-items:center;font-size:13px}
 

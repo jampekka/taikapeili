@@ -29,6 +29,7 @@ try{
  assert.equal(audio.play(),'scare');assert.deepEqual(startArgs.at(-1),[],'Normal scare still plays the complete scream');
  for(const [id,sound] of Object.entries(SCREAMS)){assert.equal(audio.play(undefined,id),id);assert.equal(started.at(-1),'./audio/'+sound.file);assert.deepEqual(startArgs.at(-1),[],'Every full selection plays without truncation')}
  assert.equal(audio.play(undefined,'invalid'),'scare');
+ audio.stop();assert.equal(audio.speaking,false);audio.say('here');assert.equal(audio.speaking,true);meterSample=.001;assert.equal(audio.speechLevel(),0);assert.equal(audio.speaking,true,'Whisper visibility survives pauses between syllables');audio.voices.at(-1).node.onended();assert.equal(audio.speaking,false,'Playback completion clears speaking');audio.warning();assert.equal(audio.speaking,true);audio.stop('instruction');assert.equal(audio.speaking,false);
  audio.stop();meterSample=.02;assert.equal(audio.speechLevel(),0,'No stale pulse after speech stops');
  audio.say('come');assert.ok(Math.abs(audio.speechLevel()-(1-Math.exp(-(.02-.0015)*12-(.02-.004)*1.5)))<1e-6);assert.equal(audio.voices.at(-1).node.connections[0].connections[0],audio.speechMeter,'Whispers route through the speech meter');
  const quiet=audio.speechLevel();meterSample=.08;const medium=audio.speechLevel();meterSample=.2;const loud=audio.speechLevel();assert.ok(quiet<medium&&medium<loud&&loud<1,'Live dynamics remain distinct instead of clipping at moderate volume');
