@@ -10,3 +10,6 @@
 #audioGate{position:fixed;inset:0;z-index:100;background:#090b09;color:#eee;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:30px;text-align:center}#audioGate p{max-width:28em;line-height:1.5}#audioGate button{font-size:17px;padding:18px 30px}#audioGate[hidden]{display:none!important}
 
 #closeWidthValue{color:#ffc36a;white-space:nowrap;font-variant-numeric:tabular-nums}#closeWidth{max-width:48%}
+
+/* The live renderer draws the bulbs through the same RGB warp as the camera. */
+.lights[data-rendered=true] i{visibility:hidden}

@@ -34,3 +34,8 @@ export function projectLivePoint(point,view={}){
  let p={...point};for(let i=0;i<48;i++){const q=sampleLivePoint(p,view),dx=(q.x-target.x)/cover[0],dy=(q.y-target.y)/cover[1];if(Math.abs(dx)+Math.abs(dy)<1e-7)break;p={x:p.x+dx,y:p.y-dy}}
  return p;
 }
+
+// Undo camera mirroring/crop only: retain the exact displayed warp for the lamps.
+export function lampSamplePoint(q,{cover=[1,1]}={}){
+ return {x:((1-q.x)-.5)/cover[0]+.5,y:(q.y-.5)/cover[1]+.5};
+}

@@ -16,12 +16,12 @@ let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=n
 let source=null,stream=null,detector=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null;
 let config=loadSettings();
 const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:null,imageMs:null,frameAgeMs:null,error:'none',sound:'locked',eyes:'not measured'};
-const lightFrame=$('lights');new ResizeObserver(()=>layoutLights(lightFrame)).observe(lightFrame);
+const lightFrame=$('lights'),lampSource=document.createElement('canvas');new ResizeObserver(()=>layoutLights(lightFrame,lampSource)).observe(lightFrame);
 const events=[],audio=new HorrorAudio();audio.setVolume(config.volume);
 const wakeLock=new ScreenWakeLock(navigator,document,()=>updateDebug());
 const frame=document.createElement('canvas'),scan=document.createElement('canvas');
 const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alpha:false});
-const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),voiceLevel:()=>audio.speechLevel(),onTick:()=>drawTracking(trackedFaces),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
+const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:()=>{lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 renderer.strength=config.morph;
 const run=new MirrorRun(state=>{
  if(state!=='approach'){approachPulse?.cancel();approachPulse=null}
@@ -35,7 +35,7 @@ const run=new MirrorRun(state=>{
 });
 function log(message){events.unshift(`${new Date().toLocaleTimeString()} ${safeError(message)}`);events.length=Math.min(10,events.length);updateDebug()}
 function headFacing(){const rect=glass.getBoundingClientRect();return facingMirror(lastFace,rect.width/Math.max(1,rect.height))}
-function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
+function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`lamps       ${renderer.lampsReady?'warped':'overlay'}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
 function playActiveCue(){
  if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
  const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
@@ -163,7 +163,7 @@ function loop(now){
  }
  if(source)raf=requestAnimationFrame(loop);
 }
-function stop(){void wakeLock.release();moveFixture=null;liveEyeFocus=null;liveEyes=null;activeCue=null;trackedFaces=[];epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
+function stop(){void wakeLock.release();moveFixture=null;liveEyeFocus=null;liveEyes=null;activeCue=null;trackedFaces=[];epoch++;cancelAnimationFrame(raf);run.reset();renderer.stop();lightFrame.dataset.rendered='false';renderer.clearReveal();audio.stop();$('ritualText').hidden=true;stream?.getTracks().forEach(track=>track.stop());stream=null;source=null;video.srcObject=null;starting=false}
 async function start(){
  if(starting||source)return;starting=true;void wakeLock.acquire();const current=++epoch;$('startup').hidden=false;$('enable').hidden=true;$('message').textContent='Opening the mirror…';
  try{

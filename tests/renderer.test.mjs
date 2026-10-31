@@ -72,3 +72,28 @@ for(const aspect of [.6,1,1.5]){
  assert.ok(edgeCounts.every(n=>n>=2),'All four edges have multiple sources');
 }
 console.log('PASS: uniform four-edge distribution and bounded wandering across aspect ratios');
+
+// A black reflection must still show the lamps, with the exact same RGB warp.
+const lampPixels=new Uint8ClampedArray(w*h*4);
+for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(Math.hypot(x-w*.08,y-h*.3)<4){const i=(y*w+x)*4;lampPixels.set([255,255,255,255],i)}
+const darkCtx={...ctx,getImageData(){const data=new Uint8ClampedArray(w*h*4);for(let i=3;i<data.length;i+=4)data[i]=255;return {data}}};
+const lit={scratch:{width:w,height:h},sctx:darkCtx,ctx:{drawImage(){}},lampPixels:()=>lampPixels};
+let baseline;
+for(const cover of [[1,1],[.55,1],[1,.65]]){
+ MirrorRenderer.prototype.drawCPU.call(lit,image,w,h,{cover,power:0,lampOpacity:1});
+ if(!baseline)baseline=output.slice();else assert.deepEqual(output,baseline,'Lamp placement stays in screen space across camera crops');
+}
+assert.ok(baseline.some((v,i)=>i%4!==3&&v===255),'White lamps remain visible over a black camera image');
+MirrorRenderer.prototype.drawCPU.call(lit,image,w,h,{cover:[.6,1],power:.025,time:2,aspect:w/h,speechPower:.455,sources:[[.04,.3]],ripples:[[.12,.1,.04,.3]],lampOpacity:1});
+assert.notDeepEqual(output,baseline,'Lamps physically warp with local swells, ripples and base morph');
+assert.ok(output.some((v,i)=>i%4===0&&(v!==output[i+1]||v!==output[i+2])),'White bulbs acquire RGB separation from the shared warp');
+MirrorRenderer.prototype.drawCPU.call(lit,image,w,h,{lampOpacity:0});
+assert.ok(output.every((v,i)=>v===(i%4===3?255:0)),'Lamp blackout leaves the black reflection untouched');
+assert.equal(lit.lampsReady,true,'A completed lamp frame can replace the DOM fallback');
+let reads=0;
+const cache={lamps:{lampRevision:1},lampScratch:{width:0,height:0},lampContext:{drawImage(){},getImageData(){reads++;return {data:new Uint8ClampedArray(16)}}}};
+for(let i=0;i<10;i++)MirrorRenderer.prototype.lampPixels.call(cache,2,2);
+assert.equal(reads,1,'Unchanged lamps have no per-frame pixel readback');
+cache.lamps.lampRevision++;MirrorRenderer.prototype.lampPixels.call(cache,2,2);assert.equal(reads,2,'A resized lamp layout refreshes the texture cache');
+MirrorRenderer.prototype.lampPixels.call(cache,3,2);assert.equal(reads,3,'A changed CPU render size refreshes the texture cache');
+console.log('PASS: lamps show against darkness, share the RGB warp, preserve crop/blackout and cache their pixels');
