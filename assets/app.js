@@ -2,7 +2,7 @@ import {transformSnapshot} from './effects.js';
 import {FaceTracker,faceToMirror,bothEyesVisible,facingMirror} from './tracker.js';
 import {MirrorRenderer} from './renderer.js';
 import {MirrorRun,delay} from './run.js';
-import {loadSettings,saveSettings,ENDINGS} from './settings.js';
+import {loadSettings,saveSettings,ENDINGS,EFFECT_CONTROLS} from './settings.js';
 import {ScreenWakeLock} from './wake-lock.js';
 import {enterFullscreen} from './fullscreen.js';
 import {layoutLights,approachBlinks} from './lights.js';
@@ -11,7 +11,7 @@ import {SCREAMS} from './screams.js';
 import {safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
-const revealMs=650,encoreMs=450,lookMs=4000,startDelayMs=2000,psstMs=650,psstBeatMs=700,laughDelayMs=400;
+const revealMs=650,encoreMs=450,lookMs=4000,startDelayMs=2000,psstBeatMs=700,laughDelayMs=400;
 let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null,scareEndsAt=0,approachPulse=null;
 let source=null,stream=null,detector=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null;
 let config=loadSettings();
@@ -23,6 +23,7 @@ const frame=document.createElement('canvas'),scan=document.createElement('canvas
 const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alpha:false});
 const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:()=>{lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 renderer.strength=config.morph;
+renderer.effects=config;
 const run=new MirrorRun(state=>{
  if(state!=='approach'){approachPulse?.cancel();approachPulse=null}
  mirror.dataset.phase=state==='running'?'processing':state==='reveal'?'reveal':'live';
@@ -38,12 +39,12 @@ function headFacing(){const rect=glass.getBoundingClientRect();return facingMirr
 function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`lamps       ${renderer.lampsReady?'warped':'overlay'}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
 function playActiveCue(){
  if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
- const result=audio.say(activeCue.id,activeCue.clipSeconds);stats.sound=`whisper ${activeCue.id}: ${result}`;
+ const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
  if(result===activeCue.id){activeCue.played=true;log(`Whisper played: ${activeCue.id}`)}
  updateAudioPrompt();updateDebug();
 }
-function cue(text,id,duration,clipSeconds){
- activeCue={id,clipSeconds,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
+function cue(text,id,duration){
+ activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
  if(id==='opening'||id==='come'||id==='here'){
   approachPulse?.cancel();
   const flashes=renderer.reduced?[{opacity:1},{opacity:.85,offset:.45},{opacity:1}]:approachBlinks(duration);
@@ -54,9 +55,9 @@ function cue(text,id,duration,clipSeconds){
 async function approach(signal){
  log('Approach · 2s lead-in');await delay(startDelayMs,signal);
  const prompts={opening:'Psst. Täällä peilissä. Tule tänne.',come:'Tule lähemmäksi.',here:'Katso tänne.'};
- // The first word of opening.mp3 ends before its next phrase starts.
- cue('Psst.','opening',psstMs,psstMs/1000);
- await delay(psstMs+psstBeatMs,signal);
+ const openingMs=Math.ceil(audio.duration('opening',3.3)*1000);
+ cue(prompts.opening,'opening',openingMs);
+ await delay(openingMs+psstBeatMs,signal);
  let speakingUntil=performance.now(),nextPromptAt=speakingUntil;
  while(true){
   const now=performance.now(),near=run.facePresent&&lastFace?.width>=config.closeWidth,looking=run.facePresent&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))&&headFacing();
@@ -132,7 +133,7 @@ async function afterReveal(signal){
  await delay(audio.duration('laugh',1)*1000,signal);
 }
 function trigger(face){
- if(run.state!=='idle'||!run.armed||!source)return;
+ if($('effectsPanel').open||run.state!=='idle'||!run.armed||!source)return;
  stats.error='none';stats.frameAgeMs=null;stats.imageMs=null;stats.providerMs=null;
  log('Face → approach → sequence');
  run.start({approach,generate:signal=>generate(lastFace||face,signal),generateAfterSequence:true,sequence,beforeReveal,reveal,afterReveal,instruction,encore:config.encore!=='off'?(result,signal)=>showStartle(result,signal,config.encore==='original'?revealMs:encoreMs,true):null});
@@ -206,7 +207,29 @@ function showCloseWidth(){
 }
 function persistSettings(){
  const saved=saveSettings(config);$('settingsStatus').textContent=saved?'Saved automatically in this browser.':'Browser storage unavailable; changes last until reload.';
+ $('effectsStatus').textContent=saved?'Saved on this device.':'Changes last until reload: device storage is unavailable.';
 }
+const effectsPanel=$('effectsPanel');
+function syncEffects(){
+ renderer.strength=config.morph;
+ for(const control of EFFECT_CONTROLS){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=Math.round(config[control.key]*100)+'%'}
+ $('morph').value=Math.round(config.morph*100);
+}
+for(const control of EFFECT_CONTROLS){
+ const label=document.createElement('label'),title=document.createElement('span'),output=document.createElement('output'),input=document.createElement('input');
+ title.textContent=control.label;output.id='value-'+control.key;
+ input.id='effect-'+control.key;input.type='range';input.min=control.min;input.max=control.max;input.step='.01';input.setAttribute('aria-label',control.label);label.htmlFor=input.id;output.htmlFor=input.id;
+ label.append(title,output,input);$('effectControls').append(label);
+ input.addEventListener('input',()=>{config[control.key]=Number(input.value);syncEffects();persistSettings()});
+}
+syncEffects();
+$('openEffects').addEventListener('click',()=>{
+ run.reset();renderer.clearReveal();audio.stop();effectsPanel.show();$('openEffects').setAttribute('aria-expanded','true');
+});
+$('closeEffects').addEventListener('click',()=>effectsPanel.close());
+effectsPanel.addEventListener('close',()=>{audio.stop('whisper');$('openEffects').setAttribute('aria-expanded','false');$('openEffects').focus()});
+$('previewVoice').addEventListener('click',async()=>{await audio.unlock();if(effectsPanel.open)audio.say('opening')});
+$('resetEffects').addEventListener('click',()=>{for(const c of EFFECT_CONTROLS)config[c.key]=c.value;syncEffects();persistSettings()});
 if(debug){
  for(const [id,sound] of Object.entries(SCREAMS)){const option=document.createElement('option');option.value=id;option.textContent=sound.label;$('scream').append(option)}
  $('scream').value=config.scream;
@@ -220,7 +243,7 @@ if(debug){
  $('testEnding').addEventListener('click',async()=>{await unlock();stats.sound=audio.warning(config.ending);updateDebug()});
  $('debug').hidden=audio.status!=='running';
  $('closeWidth').addEventListener('input',e=>{config.closeWidth=Number(e.target.value)/100;showCloseWidth();persistSettings();drawTracking(trackedFaces);updateDebug()});
- $('morph').addEventListener('input',e=>{config.morph=Number(e.target.value)/100;renderer.strength=config.morph;persistSettings()});
+ $('morph').addEventListener('input',e=>{config.morph=Number(e.target.value)/100;syncEffects();persistSettings()});
  $('volume').addEventListener('input',e=>{config.volume=Number(e.target.value)/100;audio.setVolume(config.volume);persistSettings()});
  $('boxes').addEventListener('change',e=>{config.boxes=e.target.checked;persistSettings();drawTracking(trackedFaces)});
  $('showTexts').addEventListener('change',e=>{config.texts=e.target.checked;persistSettings();$('ritualText').hidden=!config.texts||!activeCue});

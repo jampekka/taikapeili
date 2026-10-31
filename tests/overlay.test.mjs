@@ -21,6 +21,7 @@ assert.ok(Math.abs(displacement(.15,.4))>Math.abs(displacement(.15,1.2))*10,'Wav
 const at={x:.18,y:.3},a=ripplePoint(at,{ripples:[packets[0]]}),b=ripplePoint(at,{ripples:[packets[1]]}),both=ripplePoint(at,{ripples:packets.slice(0,2)});
 assert.ok(Math.abs(both.x-(a.x+b.x-at.x))<1e-12&&Math.abs(both.y-(a.y+b.y-at.y))<1e-12,'Waves from different sources overlap additively');
 const p={x:.6,y:.6},base={power:.0175,time:2};
+assert.deepEqual(sampleLivePoint(p,{...base,ripples:packets,rgbSplit:0},-1),sampleLivePoint(p,{...base,ripples:packets,rgbSplit:0},1),'RGB control can align channels while morph and ripples stay active');
 assert.notDeepEqual(sampleLivePoint(p,base,-1),sampleLivePoint(p,base,1),'RGB channels break apart without speech');
 assert.notDeepEqual(sampleLivePoint(p,base),sampleLivePoint(p,{...base,time:3}),'Base morph keeps moving in silence');
 console.log('PASS: combined overlay alignment, circular travelling rings, fixed edges and continuous RGB morph');

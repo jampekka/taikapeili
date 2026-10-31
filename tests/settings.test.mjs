@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import {loadSettings,saveSettings} from '../assets/settings.js';
+import {loadSettings,saveSettings,EFFECT_CONTROLS} from '../assets/settings.js';
 import {SCREAMS} from '../assets/screams.js';
 let value;const storage={getItem(){return value},setItem(key,data){value=data}};
 const defaults=loadSettings(storage);assert.equal(defaults.ending,'invite');assert.equal(defaults.closeWidth,.45);assert.equal(defaults.encore,'off');
+for(const c of EFFECT_CONTROLS){saveSettings({...defaults,[c.key]:c.max},storage);assert.equal(loadSettings(storage)[c.key],c.max);saveSettings({...defaults,[c.key]:-99},storage);assert.equal(loadSettings(storage)[c.key],c.min)}
 assert.equal(saveSettings({...defaults,ending:'secret',encore:'original',scream:'sharpLong',volume:.4,morph:.3,texts:true,boxes:false,closeWidth:.6,provider:'server',model:'paid'},storage),true);
-assert.deepEqual(loadSettings(storage),{morph:.3,volume:.4,texts:true,boxes:false,closeWidth:.6,ending:'secret',encore:'original',scream:'sharpLong'});
+assert.deepEqual(loadSettings(storage),{...defaults,morph:.3,volume:.4,texts:true,boxes:false,closeWidth:.6,ending:'secret',encore:'original',scream:'sharpLong'});
 assert.equal(JSON.parse(value).provider,undefined,'Paid provider selection must not be restored on a normal page load');
 value=JSON.stringify({encore:true});assert.equal(loadSettings(storage).encore,'short','Existing enabled second scares migrate to the longer short option');
 for(const encore of ['off','short','original']){saveSettings({...defaults,encore},storage);assert.equal(loadSettings(storage).encore,encore)}

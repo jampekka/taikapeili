@@ -1,8 +1,8 @@
 // Map an unwarped, mirrored camera point through the live renderer's green channel.
 // Only the debug box uses this inverse. Detection and run timing remain unchanged.
-export function ripplePoint(p,{aspect=1,ripples=[],sources=[],speechPower=0}={}){
+export function ripplePoint(p,{aspect=1,ripples=[],sources=[],speechPower=0,rippleReach=1}={}){
  const smooth=(a,b,v)=>{const t=Math.max(0,Math.min(1,(v-a)/(b-a)));return t*t*(3-2*t)};
- const shortSide=Math.min(aspect,1),edgeDistance=Math.min(Math.min(p.x,1-p.x)*aspect,Math.min(p.y,1-p.y))/shortSide,fade=smooth(0,.015,edgeDistance)*(1-smooth(.17,.44,edgeDistance));
+ const shortSide=Math.min(aspect,1),edgeDistance=Math.min(Math.min(p.x,1-p.x)*aspect,Math.min(p.y,1-p.y))/shortSide,fade=smooth(0,.015,edgeDistance)*(1-smooth(.17*rippleReach,.44*rippleReach,edgeDistance));
  // The local swell retains the pre-perimeter profile; travelling waves have their own reach.
  const nearestEdge=Math.min(p.x,1-p.x,p.y,1-p.y),sourceFade=smooth(0,.015,p.x)*smooth(0,.015,1-p.x)*smooth(0,.015,p.y)*smooth(0,.015,1-p.y)*(1-smooth(.12,.36,nearestEdge));
  let x=p.x,y=p.y;
@@ -13,14 +13,14 @@ export function ripplePoint(p,{aspect=1,ripples=[],sources=[],speechPower=0}={})
  }
  for(const [age,amplitude,originX,originY] of ripples){
   const dx=(p.x-originX)*aspect,dy=p.y-originY,radius=Math.hypot(dx,dy),front=radius-age*.48;
-  const offset=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288-radius/(shortSide*.25)-age*2.7);
+  const offset=amplitude*Math.sin(front*39.269908)*Math.exp(-front*front/.0288-radius/(shortSide*.25*rippleReach)-age*2.7);
   const t=Math.min(1,radius/.06),amount=offset*fade*t*t*(3-2*t)/Math.max(radius,.0001);
   x+=dx*amount/aspect;y+=dy*amount;
  }
  return {x,y};
 }
 export function sampleLivePoint(p,view={},channel=0,voiced=ripplePoint(p,view)){
- const {cover=[1,1],power=0,time=0}=view,split=1+channel*.45;
+ const {cover=[1,1],power=0,time=0,rgbSplit=1}=view;channel*=rgbSplit;const split=1+channel*.45;
  let x=1-((p.x+(voiced.x-p.x)*split-.5)*cover[0]+.5),y=(p.y+(voiced.y-p.y)*split-.5)*cover[1]+.5;
  const dx=x-(.5+.08*Math.sin(time*.31)),dy=y-(.48+.07*Math.cos(time*.27));
  const ex=2*p.x-1,ey=2*p.y-1,t=Math.min(1,Math.max(0,(1-ex*ex)*(1-ey*ey))/.65),a=power*t*t*(3-2*t);
