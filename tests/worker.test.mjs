@@ -8,6 +8,14 @@ const script=await worker.fetch(make('/app.js'),env);assert.match(script.headers
 assert.equal((await worker.fetch(make('/'),env)).status,200);
 const manifestResponse=await worker.fetch(make('/manifest.webmanifest'),env);assert.match(manifestResponse.headers.get('content-type'),/manifest\+json/);
 const manifest=await manifestResponse.json();assert.equal(manifest.display,'fullscreen');assert.equal(manifest.start_url,'/');
+const publicPage=await (await worker.fetch(make('/'),env)).text();
+assert.match(publicPage,/id="openEffects" hidden data-operator-control/,'Public page starts with operator controls hidden before JavaScript');
+assert.ok(!publicPage.includes('id="openDebug"'),'No public in-app debug entry');
+assert.ok(publicPage.includes('href="manifest.webmanifest"'));
+const debugPage=await (await worker.fetch(make('/?debug=1'),env)).text();
+assert.ok(debugPage.includes('href="manifest-debug.webmanifest"'),'Explicit debug installs receive the debug manifest');
+const debugManifest=await (await worker.fetch(make('/manifest-debug.webmanifest'),env)).json();
+assert.equal(debugManifest.start_url,'/?debug=1');assert.notEqual(debugManifest.id,manifest.id,'Operator and public app shortcuts have separate identities');
 for(const icon of [...manifest.icons,{src:'icon-180.png'}]){const response=await worker.fetch(make('/'+icon.src),env);assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png')}
 
 const warningAudio=await worker.fetch(make('/audio/warning.mp3'),env);assert.equal(warningAudio.status,200);assert.ok((await warningAudio.arrayBuffer()).byteLength>1000);

@@ -220,17 +220,14 @@ function persistSettings(){
  $('effectsStatus').textContent=saved?'Saved on this device.':'Changes last until reload: device storage is unavailable.';
 }
 const effectsPanel=$('effectsPanel');
-$('openDebug').textContent=debug?'Hide debug settings':'Debug settings';
-$('openDebug').addEventListener('click',()=>{
- const target=new URL(location.href);
- if(debug)target.searchParams.delete('debug');else target.searchParams.set('debug','1');
- location.assign(target.href);
-});
 function syncEffects(){
  renderer.strength=config.morph;
  for(const control of [...EFFECT_CONTROLS,...CAMERA_CONTROLS]){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=control.key==='cameraZoom'?config[control.key].toFixed(2)+'×':Math.round(config[control.key]*100)+'%'}
  $('morph').value=Math.round(config.morph*100);
 }
+if(debug){
+ document.documentElement.dataset.debug='true';$('openEffects').hidden=false;
+ $('runPublic').addEventListener('click',()=>{const target=new URL(location.href);target.searchParams.delete('debug');location.assign(target.href)});
 for(const control of [...CAMERA_CONTROLS,...EFFECT_CONTROLS]){
  const label=document.createElement('label'),title=document.createElement('span'),output=document.createElement('output'),input=document.createElement('input');
  title.textContent=control.label;output.id='value-'+control.key;
@@ -257,6 +254,7 @@ $('closeEffects').addEventListener('click',()=>effectsPanel.close());
 effectsPanel.addEventListener('close',()=>{audio.stop('whisper');$('openEffects').setAttribute('aria-expanded','false');$('openEffects').focus()});
 $('previewVoice').addEventListener('click',async()=>{await audio.unlock();if(effectsPanel.open)audio.say('opening')});
 $('resetEffects').addEventListener('click',()=>{for(const c of EFFECT_CONTROLS)config[c.key]=c.value;syncEffects();persistSettings()});
+}
 if(debug){
  for(const [id,sound] of Object.entries(SCREAMS)){const option=document.createElement('option');option.value=id;option.textContent=sound.label;$('scream').append(option)}
  $('scream').value=config.scream;

@@ -1,3 +1,9 @@
+## Hard interaction requirement
+
+The public mirror is camera driven after the required audio/camera startup. All operator settings, camera framing, effect controls, and debug controls are available ONLY with an explicit `?debug=1` URL. Never add a settings button, secret gesture, or debug entry to the public experience. Public controls are hidden in HTML/CSS and only initialized in debug mode.
+
+For a Home Screen debug app, open `/?debug=1` in Safari and add that page to Home Screen. The server supplies a separate debug manifest with a debug start URL and identity; the ordinary app always starts without debug. After tuning in the debug app, use its operator-only “Run mirror” button to reload in public mode using the same app storage. There is no return control; reopening the explicit debug shortcut is required.
+
 # The Other Side — Halloween mirror
 
 Dummy mode is the default on every page load. It makes no image API calls. The UI is a live mirrored camera, vanity lights and Finnish text/whisper cues. Debug controls are at `?debug=1`. Ending selection, scream sound, optional second scare, volume, morph strength, distance threshold and text/overlay toggles save automatically in this browser and apply on normal page loads. Other browsers/devices keep their own settings. Paid image provider selection is never saved.
