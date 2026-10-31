@@ -14,7 +14,7 @@ export const EFFECT_CONTROLS=[
  {key:'sourceWander',label:'Source wandering',min:0,max:1,value:1},
  {key:'lampBrightness',label:'Lamp brightness',min:0,max:1,value:1}
 ];
-const defaults={...Object.fromEntries(EFFECT_CONTROLS.map(c=>[c.key,c.value])),volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.82,ending:'secret'};
+const defaults={...Object.fromEntries(EFFECT_CONTROLS.map(c=>[c.key,c.value])),volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.5,ending:'secret'};
 function clean(value){
  const saved=value&&typeof value==='object'?value:{},result={...defaults};
  for(const [key,min,max] of [...EFFECT_CONTROLS.map(c=>[c.key,c.min,c.max]),['volume',0,1],['closeWidth',.2,.9]])if(typeof saved[key]==='number'&&Number.isFinite(saved[key]))result[key]=Math.max(min,Math.min(max,saved[key]));

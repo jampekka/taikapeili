@@ -3,7 +3,7 @@ import {loadSettings,saveSettings,EFFECT_CONTROLS} from '../assets/settings.js';
 import {SCREAMS} from '../assets/screams.js';
 let value;const storage={getItem(){return value},setItem(key,data){value=data}};
 const defaults=loadSettings(storage);
-assert.deepEqual(defaults,{morph:1,morphSpeed:.9,rgbSplit:.77,sourcePunch:1.62,rippleStrength:1.78,rippleReach:2,sourceWander:1,lampBrightness:1,volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.82,ending:'secret'});
+assert.deepEqual(defaults,{morph:1,morphSpeed:.9,rgbSplit:.77,sourcePunch:1.62,rippleStrength:1.78,rippleReach:2,sourceWander:1,lampBrightness:1,volume:1,texts:false,boxes:true,encore:'original',scream:'sharp',closeWidth:.5,ending:'secret'});
 for(const c of EFFECT_CONTROLS){saveSettings({...defaults,[c.key]:c.max},storage);assert.equal(loadSettings(storage)[c.key],c.max);saveSettings({...defaults,[c.key]:-99},storage);assert.equal(loadSettings(storage)[c.key],c.min)}
 assert.equal(saveSettings({...defaults,ending:'secret',encore:'original',scream:'sharpLong',volume:.4,morph:.3,texts:true,boxes:false,closeWidth:.6,provider:'server',model:'paid'},storage),true);
 assert.deepEqual(loadSettings(storage),{...defaults,morph:.3,volume:.4,texts:true,boxes:false,closeWidth:.6,ending:'secret',encore:'original',scream:'sharpLong'});
