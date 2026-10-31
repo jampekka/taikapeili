@@ -1,13 +1,20 @@
-Sheet ghost v1
+Floating ghost heads v2
 
-Artwork: generated from the selected option 8 concept. No mouth or added pupils.
-sheet-loop.mp4 is a silent procedural animation of sheet-ghost.png, not AI video.
-Rebuild: python scripts/render-ghost-loop.py (Pillow, NumPy, SciPy, ffmpeg).
-8 seconds, 24fps, H.264/yuv420p; all motion is periodic with no duplicated endpoint.
-The black matte uses CSS screen blending to show the camera through the ghost.
+Selected artwork: option 5 (soft gauze, default), option 1 (classic sheet).
+Generated with the built-in image tool from a six-head comparison. Prompts:
+- Front-facing pale cloth-covered HEAD ONLY; no shoulders, torso or skirt.
+- No mouth, lips, nose details, eyeballs or pupils; soft dark oval eye hollows.
+- Fine pale linen, soft wispy alpha edge, completely transparent background.
+- Soft option: smooth restrained gauze. Classic: more folds, smaller eye holes.
 
-The separate ghost canvas never enters face tracking or portrait capture.
-It appears at the opening whisper, hides during both scares and the laugh,
-and returns for the ending. Existing "Katso tanne" audio draws attention to it.
-The scare is aligned to the ghost's eye midpoint while the ghost is visible.
-Enable, opacity, size and preview are available only in ?debug=1 > Effects.
+Source assets: head-soft.png, head-classic.png.
+head-soft-loop.mp4 and head-classic-loop.mp4 are procedural animations of the
+stills, not AI video. Rebuild: python scripts/render-ghost-loop.py (Pillow,
+NumPy, SciPy, ffmpeg). Each is silent 8s / 24fps H.264/yuv420p, periodic motion.
+Black matte is removed with CSS screen compositing over the live mirror.
+
+Separate canvas never enters face tracking or portrait capture. Appears with
+the opening whisper, clears for both scares and laugh, returns for the ending.
+Existing "Katso tanne" whisper draws attention to the head. Reveal placement
+uses the head's eye midpoint; viewer eye tracking remains the capture focus.
+Style, enable, opacity, size and preview: ?debug=1 > Effects only.

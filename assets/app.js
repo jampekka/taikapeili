@@ -1,7 +1,7 @@
 import {CAMERA_CONTROLS,cameraCrop,frameEyes} from './camera-view.js';
 import {transformSnapshot} from './effects.js';
 import {FaceTracker,faceToMirror,bothEyesVisible,facingMirror} from './tracker.js';
-import {GhostOverlay,GHOST_CONTROLS,ghostVisible} from './ghost.js';
+import {GhostOverlay,GHOST_CONTROLS,GHOST_STYLES,ghostVisible} from './ghost.js';
 import {MirrorRenderer} from './renderer.js';
 import {MirrorRun,delay} from './run.js';
 import {loadSettings,saveSettings,ENDINGS,EFFECT_CONTROLS} from './settings.js';
@@ -28,7 +28,7 @@ let ghostPreviewUntil=0;
 const ghost=new GhostOverlay($('ghost'),{reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 function drawGhost(now){
  const visible=!!source&&config.ghostEnabled&&ghostVisible(run.state,!!activeCue,debug&&now<ghostPreviewUntil);
- ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.speechPulse,opacity:config.ghostOpacity,size:config.ghostSize});
+ ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.speechPulse,opacity:config.ghostOpacity,size:config.ghostSize,style:config.ghostStyle});
  renderer.ghostTarget=ghost.target;
 }
 const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:now=>{drawGhost(now);lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
@@ -232,7 +232,7 @@ const effectsPanel=$('effectsPanel');
 function syncEffects(){
  renderer.strength=config.morph;
  for(const control of [...EFFECT_CONTROLS,...CAMERA_CONTROLS,...GHOST_CONTROLS]){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=control.key==='cameraZoom'?config[control.key].toFixed(2)+'×':Math.round(config[control.key]*100)+'%'}
- $('morph').value=Math.round(config.morph*100);$('ghostEnabled').checked=config.ghostEnabled;
+ $('morph').value=Math.round(config.morph*100);$('ghostEnabled').checked=config.ghostEnabled;$('ghostStyle').value=config.ghostStyle;
 }
 if(debug){
  document.documentElement.dataset.debug='true';$('openEffects').hidden=false;
@@ -244,7 +244,9 @@ for(const control of [...CAMERA_CONTROLS,...EFFECT_CONTROLS,...GHOST_CONTROLS]){
  label.append(title,output,input);$(control.key.startsWith('camera')?'cameraControls':control.key.startsWith('ghost')?'ghostControls':'effectControls').append(label);
  input.addEventListener('input',()=>{config[control.key]=Number(input.value);if(control.key.startsWith('camera'))resetFramingTracking();syncEffects();persistSettings()});
 }
+for(const [value,style] of Object.entries(GHOST_STYLES)){const option=document.createElement('option');option.value=value;option.textContent=style.label;$('ghostStyle').append(option)}
 syncEffects();
+$('ghostStyle').addEventListener('change',e=>{config.ghostStyle=e.target.value;persistSettings()});
 $('ghostEnabled').addEventListener('change',e=>{config.ghostEnabled=e.target.checked;persistSettings()});
 $('previewGhost').addEventListener('click',async()=>{ghostPreviewUntil=performance.now()+8000;await audio.unlock();if(effectsPanel.open)audio.say('here')});
 function resetFramingTracking(){if(!starting)epoch++;trackedFaces=[];lastFace=null;liveEyes=null;liveEyeFocus=null;lastScan=-Infinity;updateCameraView()}

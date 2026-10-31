@@ -28,3 +28,5 @@ html:not([data-debug]) [data-operator-control]{display:none!important}
 #ghost{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;mix-blend-mode:screen}
 #mirror[data-phase=reveal] #ghost{visibility:hidden}
 .ghost-toggle{display:flex;gap:10px;align-items:center;font-size:13px}
+
+.ghost-style{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:18px 0;font-size:13px}.ghost-style select{max-width:72%;min-height:44px;background:#253729;color:#e5eddf;border:1px solid #80997677;border-radius:8px;padding:8px}
