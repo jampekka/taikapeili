@@ -19,11 +19,11 @@ for(const [w,h] of [[768,1024],[1024,768],[375,812]]){
  assert.ok(r.y+r.height*.14>=0&&r.y+r.height*.86<=h);
  if(w===768)assert.ok(r.height*.72/h>.75,'Large head on a portrait iPad');
 }
-// Missing/black iOS video still leaves the alpha cutout visible in normal blend.
-let cleared=0,drawn=0,paused=true;const paints=[],eyePoints=[];
+// Foreground painting uses only the RGBA cutout and native animation.
+let cleared=0,drawn=0;const paints=[],eyePoints=[];
 const context={createRadialGradient(){return {addColorStop(){}}},translate(){},rotate(){},scale(){},beginPath(){},moveTo(){},quadraticCurveTo(){},closePath(){},ellipse(x,y,rx,ry){eyePoints.push({context:this,alpha:this.globalAlpha,rx,ry,fill:this.fillStyle})},fill(){},clearRect(){cleared++},save(){},restore(){},drawImage(image){drawn++;paints.push({image,blend:this.globalCompositeOperation,alpha:this.globalAlpha})}};
 globalThis.Image=class{complete=true;naturalWidth=1280;decode(){return Promise.resolve()}};
-globalThis.document={createElement(tag){return tag==='canvas'?{getContext(){return {...context}}}:{readyState:2,get paused(){return paused},setAttribute(){},addEventListener(){},play(){paused=false;return Promise.resolve()},pause(){paused=true}}}};
+globalThis.document={createElement(tag){assert.equal(tag,'canvas','Ghost never loads an opaque video');return {getContext(){return {...context}}}}};
 const canvas={width:768,height:1024,getContext(){return context},getBoundingClientRect(){return {width:768,height:1024}}};
 const ghost=new GhostOverlay(canvas);await ghost.prepare('soft');
 ghost.draw(0,{visible:true,voice:.4});ghost.draw(100,{visible:true,voice:.4});
@@ -36,13 +36,14 @@ const cores=eyePoints.filter(p=>p.fill==='#fff');
 assert.ok(cores.length>0&&cores.every(p=>p.rx===p.ry&&p.rx<2),'Eyes are tiny round points with no almond outline');
 assert.ok(eyePoints.some(p=>typeof p.fill==='object'&&p.rx>2),'A soft radial halo surrounds each point');
 const speakingOpacity=ghost.opacity;for(let at=8100;at<=8800;at+=100)ghost.draw(at,{visible:true,voice:0});assert.ok(ghost.opacity<speakingOpacity&&ghost.opacity>speakingOpacity*.5,'Short pauses fade gently instead of flickering');
-assert.ok(paints.some(p=>p.image===ghost.image&&p.blend==='source-over'&&p.alpha===1),'Real alpha cutout is always underneath the video');
-assert.ok(paints.some(p=>p.image===ghost.video&&p.blend==='source-atop'&&p.alpha<.5),'Video cannot replace or erase the cutout');
+assert.ok(paints.some(p=>p.image===ghost.image&&p.blend==='source-over'&&p.alpha===1),'Real RGBA cutout is painted at its native alpha');
+assert.ok(paints.every(p=>p.image===ghost.image||p.image===ghost.layer),'No opaque video matte enters the apparition');
+assert.equal(context.shadowBlur,undefined,'No dark cast shadow surrounds the floating cutout');
 assert.ok(paints.some(p=>p.image===ghost.layer&&p.blend==='source-over'),'Foreground uses normal alpha, not screen blending');
 ghost.draw(8801,{visible:true,blackout:true});assert.equal(ghost.target,null);assert.equal(ghost.opacity,0);assert.ok(cleared>0);
 ghost.setPhase('reveal');for(const phase of ['after','instruction','finished','idle']){ghost.setPhase(phase);ghost.draw(8900,{visible:true,voice:1,preview:true});assert.equal(ghost.opacity,0,'Post-startle suppression survives ending speech, idle and debug preview');assert.equal(ghost.target,null)}
 ghost.setPhase('approach');ghost.draw(9000,{visible:true,voice:.4});ghost.draw(9100,{visible:true,voice:.4});assert.equal(ghost.suppressed,false);assert.ok(ghost.opacity>0,'Only a fresh sequence releases suppression');
-const reduced=new GhostOverlay(canvas,{reduced:true});reduced.draw(0,{visible:true});reduced.draw(500,{visible:true});assert.equal(reduced.playing,false,'Reduced motion uses the still');
+const reduced=new GhostOverlay(canvas,{reduced:true});reduced.draw(0,{visible:true});reduced.draw(500,{visible:true});assert.equal(reduced.followPose.rotation,0,'Reduced motion disables the native hover rotation');
 const app=await readFile(new URL('../assets/app.js',import.meta.url),'utf8');
 const prepare=app.slice(app.indexOf('function beforeReveal('),app.indexOf('async function reveal('));
 const renderer={projectPoint:p=>p,ghostTarget:{x:.5,y:.32}},result={focus:{x:.4,y:.6}};

@@ -62,35 +62,27 @@ export function followGhostPose(current,target,dt,seconds=.45){
 export class GhostOverlay {
  constructor(canvas,{reduced=false}={}){
   this.canvas=canvas;this.ctx=canvas.getContext('2d');this.reduced=reduced;
-  this.opacity=0;this.voiceEnvelope=0;this.suppressed=false;this.lastAt=null;this.target=null;this.followEyes=null;this.followPose=null;this.lastEyesAt=-Infinity;this.playing=false;
+  this.opacity=0;this.voiceEnvelope=0;this.suppressed=false;this.lastAt=null;this.target=null;this.followEyes=null;this.followPose=null;this.lastEyesAt=-Infinity;
   this.image=new Image();
   this.layer=document.createElement('canvas');this.layer.width=512;this.layer.height=640;
   this.layerContext=this.layer.getContext('2d');
-  this.video=document.createElement('video');this.video.muted=true;this.video.defaultMuted=true;
-  this.video.loop=true;this.video.playsInline=true;this.video.preload='auto';
-  this.video.setAttribute('muted','');this.video.setAttribute('playsinline','');
-  this.video.addEventListener('error',()=>{this.failed=true});this.setStyle('soft');
+  this.setStyle('soft');
  }
  setStyle(style){
   const selected=Object.hasOwn(GHOST_STYLES,style)?style:'soft';if(this.style===selected)return;
-  this.video.pause();this.playing=false;this.failed=false;this.target=null;this.style=selected;
-  this.image.src='ghost/'+GHOST_STYLES[selected].image;this.video.src='ghost/'+GHOST_STYLES[selected].video;
+  this.target=null;this.style=selected;
+  this.image.src='ghost/'+GHOST_STYLES[selected].image;
  }
  prepare(style){this.setStyle(style);return this.image.decode()}
  setPhase(state){
   if(state==='reveal'){this.suppressed=true;this.clear()}
   else if(state==='approach'){const wasSuppressed=this.suppressed;this.suppressed=false;if(wasSuppressed)this.clear()}
  }
- play(){
-  if(this.reduced||this.playing||this.failed)return;
-  this.playing=true;
-  this.video.play().catch(()=>{this.playing=false});
- }
  get status(){return this.suppressed?'hidden after startle':this.opacity<.003?'hidden':this.reduced?'still · reduced motion':`hover · voice ${Math.round(this.voiceEnvelope*100)}%`}
  get trackingScale(){return this.followPose?.scale||1}
  clear(){
   this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
-  this.opacity=0;this.voiceEnvelope=0;this.target=null;this.followEyes=null;this.followPose=null;this.lastEyesAt=-Infinity;this.lastAt=null;this.video.pause();this.playing=false;
+  this.opacity=0;this.voiceEnvelope=0;this.target=null;this.followEyes=null;this.followPose=null;this.lastEyesAt=-Infinity;this.lastAt=null;
  }
  draw(now,{visible=false,blackout=false,voice=0,opacity=.9,size=1.15,hover=1,eyeGlow=1,style='soft',eyes=null,eyesAt=null,scaleToEyes=false,minScale=.65,followSeconds=.45}={}){
   this.setStyle(style);
@@ -100,8 +92,7 @@ export class GhostOverlay {
   const voiceOpacity=1-Math.exp(-Math.max(0,this.voiceEnvelope-.002)*14);
   const desired=opacity*voiceOpacity;
   this.opacity+=(desired-this.opacity)*(1-Math.exp(-dt/(visible?90:180)));
-  if(this.opacity<.003&&!visible){if(this.playing||this.target)this.clear();return}
-  if(visible)this.play();
+  if(this.opacity<.003&&!visible){this.clear();return}
   const rect=this.canvas.getBoundingClientRect(),h=Math.min(960,Math.round(rect.height)),w=Math.round(h*rect.width/Math.max(1,rect.height));
   if(w<1||h<1)return;
   if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h}
@@ -113,20 +104,13 @@ export class GhostOverlay {
    if(seen>=this.lastEyesAt){this.followEyes=[...eyes].sort((a,b)=>a.x-b.x).map(p=>({...p}));this.lastEyesAt=seen}
   }
   if(now-this.lastEyesAt>1500)this.followEyes=null;
-  const playing=!this.reduced&&!this.failed&&this.video.readyState>=2&&!this.video.paused;
   const imageReady=this.image.complete&&this.image.naturalWidth>0;
   if(!imageReady){this.target=null;return}
-  // Always paint the real alpha cutout. Detached video on iOS can report ready
-  // before delivering frames; it must never make the apparition disappear.
+  // Paint only the real RGBA cutout. H.264 has an opaque black matte; keeping
+  // animation in the native pose and shared warp preserves transparent margins.
   const layer=this.layerContext;layer.clearRect(0,0,512,640);
   layer.globalAlpha=1;layer.globalCompositeOperation='source-over';
   layer.drawImage(this.image,0,64,512,512);
-  if(playing){
-   // Keep motion inside the cutout's alpha, with the still underneath. This
-   // retains eye contrast and avoids screen blending against a bright camera.
-   layer.globalCompositeOperation='source-atop';layer.globalAlpha=.35;
-   layer.drawImage(this.video,0,0,512,640);
-  }
   const styleInfo=GHOST_STYLES[this.style];
   if(eyeGlow>0){
    // Paint the tiny points and their glow into the head at full alpha. The
@@ -143,7 +127,6 @@ export class GhostOverlay {
    layer.restore();
   }
   ctx.save();ctx.globalAlpha=this.opacity;ctx.globalCompositeOperation='source-over';
-  ctx.shadowColor='rgba(0,0,0,.65)';ctx.shadowBlur=layout.width*.035;
   const fallback={cx:layout.x+layout.width/2+motion.x*layout.width,cy:layout.y+layout.height/2+motion.y*layout.height,rotation:motion.rotation,scale:scaleToEyes?motion.scale:1};
   const desiredPose=ghostEyePose(this.followEyes,w,h,layout,styleInfo,gaze,{scaleToEyes,minScale})||fallback;
   const anchor=pose=>{const px=((styleInfo.eyeX[0]+styleInfo.eyeX[1])/2+gaze.x-.5)*layout.width*pose.scale,py=(eyeY+gaze.y-.5)*layout.height*pose.scale;return {x:(pose.cx+px*Math.cos(pose.rotation)-py*Math.sin(pose.rotation))/w,y:(pose.cy+px*Math.sin(pose.rotation)+py*Math.cos(pose.rotation))/h,rotation:pose.rotation,scale:pose.scale}};

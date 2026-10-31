@@ -11,8 +11,10 @@ Source assets: head-soft.png, head-classic.png.
 head-soft-loop.mp4 and head-classic-loop.mp4 are procedural animations of the
 stills, not AI video. Rebuild: python scripts/render-ghost-loop.py (Pillow,
 NumPy, SciPy, ffmpeg). Each is silent 8s / 24fps H.264/yuv420p, periodic motion.
-The real PNG alpha cutout is always drawn using normal blending. Video motion
-is clipped over that cutout, so black/missing video cannot hide the head.
+The runtime draws only the real RGBA PNG cutout using normal blending, with
+no cast shadow or opaque H.264 video matte. Animation comes from native hover,
+zoom, eye following and the shared morph/ripple warp. The MP4s are retained
+source experiments and are not loaded by the mirror.
 The head fills the centre of the mirror, with bounded native hover and small
 tiny round glowing eye points and a subtle +/-2.5% zoom cycle. Eye fixations last about 3.4s with 140ms gaze shifts.
 Opacity follows the live speech analyser with an 8-second exponential sound-level smoothing constant.

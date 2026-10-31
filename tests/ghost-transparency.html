@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>Ghost transparency regression</title>
+<style>body{margin:20px;color:#111;font:16px system-ui;background:#fff}canvas{width:640px;height:640px;max-width:90vw;background:repeating-conic-gradient(#fff 0 25%,#ccc 0 50%) 0/48px 48px;border:1px solid #888}pre{white-space:pre-wrap}</style>
+<h1>Ghost on transparent background</h1><pre id="result">Checking…</pre><canvas id="ghost" width="640" height="640"></canvas>
+<script type="module">
+// Manual browser regression: copy to assets/ghost-alpha-qa.html, build, then
+// open /ghost-alpha-qa.html. Remove the temporary asset before publishing.
+import {GhostOverlay,ghostLayout,GHOST_STYLES} from '/ghost.js';
+const canvas=document.querySelector('canvas'),ghost=new GhostOverlay(canvas,{reduced:true}),results=[];
+try{
+ for(const style of ['soft','classic']){
+  await ghost.prepare(style);ghost.clear();
+  for(let at=0;at<=16000;at+=100)ghost.draw(at,{visible:true,voice:1,size:.65,hover:0,eyeGlow:0,style,eyes:[{x:.34,y:.38},{x:.59,y:.44}],eyesAt:at,scaleToEyes:true});
+  const expected=document.createElement('canvas');expected.width=canvas.width;expected.height=canvas.height;
+  const layer=document.createElement('canvas');layer.width=512;layer.height=640;layer.getContext('2d').drawImage(ghost.image,0,64,512,512);
+  const ctx=expected.getContext('2d'),layout=ghostLayout(canvas.width,canvas.height,.65),pose=ghost.followPose,info=GHOST_STYLES[style];
+  const px=((info.eyeX[0]+info.eyeX[1])/2-.5)*layout.width*pose.scale,py=(.1+.8*info.eyeY-.5)*layout.height*pose.scale;
+  ctx.globalAlpha=ghost.opacity;ctx.translate(pose.x*canvas.width-px*Math.cos(pose.rotation)+py*Math.sin(pose.rotation),pose.y*canvas.height-px*Math.sin(pose.rotation)-py*Math.cos(pose.rotation));ctx.rotate(pose.rotation);ctx.scale(pose.scale,pose.scale);ctx.drawImage(layer,-layout.width/2,-layout.height/2,layout.width,layout.height);
+  const actual=ghost.ctx.getImageData(0,0,canvas.width,canvas.height).data,reference=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+  let extraAlpha=0,colorErrors=0,transparent=0;
+  for(let i=0;i<actual.length;i+=4){if(reference[i+3]===0){transparent++;if(actual[i+3]!==0)extraAlpha++}if(reference[i+3]>100&&[0,1,2].some(c=>Math.abs(actual[i+c]-reference[i+c])>2))colorErrors++}
+  if(extraAlpha||colorErrors)throw Error(`${style}: ${extraAlpha} opaque background pixels, ${colorErrors} altered foreground pixels`);
+  results.push(`PASS ${style}: ${transparent} background pixels fully transparent; no black matte or cast shadow.`);
+ }
+ document.querySelector('#result').textContent=results.join('\n');
+}catch(error){document.querySelector('#result').textContent='FAIL '+error.message;throw error}
+</script>
