@@ -67,15 +67,14 @@ function cue(text,id,duration){
 }
 async function approach(signal){
  const openingMs=Math.ceil(audio.duration('opening',3.3)*1000);
- cue('Psst. Täällä peilissä. Tule tänne.','opening',openingMs);
- await delay(openingMs,signal);
+ await run.finishLine(signal,async()=>{cue('Psst. Täällä peilissä. Tule tänne.','opening',openingMs);await delay(openingMs,signal)});
  activeCue=null;$('ritualText').hidden=true;audio.stop('whisper');log('Opening finished → secret');
 }
 async function sequence(signal){
  const secretMs=Math.ceil(audio.duration('secret',6)*1000)+650;
- cue('Näytän sinulle salaisuuden, älä kerro tästä kellekään.','secret',secretMs);await delay(secretMs,signal);
+ await run.finishLine(signal,async()=>{cue('Näytän sinulle salaisuuden, älä kerro tästä kellekään.','secret',secretMs);await delay(secretMs,signal)});
  const lookDuration=Math.max(lookMs,Math.ceil(audio.duration('look',4)*1000)+250);
- cue('Katso syvälle silmiin.','look',lookDuration);await delay(lookDuration,signal);
+ await run.finishLine(signal,async()=>{cue('Katso syvälle silmiin.','look',lookDuration);await delay(lookDuration,signal)});
  activeCue=null;$('ritualText').hidden=true;log('Sequence finished');updateDebug();
 }
 async function loadDetector(){

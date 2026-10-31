@@ -24,7 +24,7 @@ Dummy mode is the default on every page load. It makes no image API calls. The U
 
 ## One run
 
-`assets/run.js` owns the lifecycle. The first detected face while armed starts the full “Psst. Täällä peilissä. Tule tänne.” opening immediately, without a lead-in or position, distance, head-facing or eye-visibility gate. When the opening recording finishes, the secret/look sequence proceeds once. Clipped eyes never restart narration. Eye tracking continues to animate and align the ghost, and the saved width setting is only a debug guide. One second without a face cancels a pre-startle sequence and rearms it; a continuously present face cannot repeat it. Lamp blinking remains optional, and reveal blackout retains priority.
+`assets/run.js` owns the lifecycle. The first detected face while armed starts the full “Psst. Täällä peilissä. Tule tänne.” opening immediately, without a lead-in or position, distance, head-facing or eye-visibility gate. When the opening recording finishes, the secret/look sequence proceeds once. Clipped eyes never restart narration. Eye tracking continues to animate and align the ghost, and the saved width setting is only a debug guide. One second without a face requests cancellation and rearms it; an active spoken line always finishes first. At its end, a still-absent viewer stops the sequence before the next line or capture, while a returning viewer continues; a continuously present face cannot repeat it. Lamp blinking remains optional, and reveal blackout retains priority.
 
 ## Tracking and reveal
 

@@ -4,13 +4,23 @@ export class MirrorRun {
  setState(state){this.state=state;this.onChange(state,this)}
  observeFace(present,now){
   this.facePresent=present;
-  if(present){this.absentSince=null;return}
+  if(present){this.absentSince=null;if(this.active)this.active.cancelAfterLine=false;return}
   if(this.absentSince===null)this.absentSince=now;
   const absentFor=now-this.absentSince;
-  if((this.state==='approach'||this.state==='running')&&absentFor>=1000)this.cancel();
+  if((this.state==='approach'||this.state==='running')&&absentFor>=1000){
+   if(this.active?.linePlaying)this.active.cancelAfterLine=true;else this.cancel();
+  }
   if(absentFor>=1000){this.armed=true;if(this.state==='finished')this.setState('idle')}
  }
  cancel(){const run=this.active;this.active=null;run?.controller.abort();this.setState('finished')}
+ async finishLine(signal,play){
+  const run=this.active;
+  if(!run||run.controller.signal!==signal||signal.aborted)throw new DOMException('Cancelled','AbortError');
+  run.linePlaying=true;
+  try{await play()}finally{run.linePlaying=false}
+  if(this.active===run&&run.cancelAfterLine){this.cancel();if(this.armed)this.setState('idle')}
+  if(this.active!==run||signal.aborted)throw new DOMException('Cancelled','AbortError');
+ }
  start({generate,sequence,approach=null,beforeReveal=async image=>image,reveal,afterReveal=async()=>{},instruction=null,encore=null,generateAfterSequence=false}){
   if(this.state!=='idle'||!this.armed)return false;
   this.armed=false;
