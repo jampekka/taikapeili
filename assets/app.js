@@ -11,7 +11,7 @@ import {SCREAMS} from './screams.js';
 import {safeError} from './provider.js';
 const $=id=>document.getElementById(id),mirror=$('mirror'),video=$('camera'),glass=$('glass');
 const params=new URLSearchParams(location.search),debug=params.has('debug'),fixture=params.get('test'),muted=params.get('mute')==='1';
-const revealMs=650,encoreMs=450,lookMs=4000,startDelayMs=2000,laughDelayMs=400;
+const revealMs=650,encoreMs=450,lookMs=4000,startDelayMs=2000,psstMs=650,psstBeatMs=700,laughDelayMs=400;
 let trackedFaces=[],activeCue=null,liveEyeFocus=null,liveEyes=null,moveFixture=null,scareEndsAt=0,approachPulse=null;
 let source=null,stream=null,detector=null,raf=0,epoch=0,starting=false,lastScan=-Infinity,lastFace=null;
 let config=loadSettings();
@@ -38,12 +38,12 @@ function headFacing(){const rect=glass.getBoundingClientRect();return facingMirr
 function updateDebug(){if(!debug)return;const active=run.active;$('debugState').textContent=[`state       ${run.state} · ${run.armed?'armed':'needs 1s absence'}`,'provider    dummy (no API calls)',`face scans  ${stats.detections} · ${stats.faces} faces`,`distance    ${lastFace?Math.round(lastFace.width*100)+'% face width':'no face'} · close at ${Math.round(config.closeWidth*100)}%`,`eyes in view ${bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))?'both':'no'}`,`head facing ${headFacing()?'yes':'no'}`,`capture     ${stats.captures}`,`sequence    ${active?.sequenceDone?'finished':active?'running':'—'}`,`image       ${active?.imageReady?'ready':active?.generateAfterSequence&&!active.sequenceDone?'waiting for final capture':active?'working':'—'}`,`image time  ${stats.imageMs===null?'—':Math.round(stats.imageMs)+'ms'}`,`frame age   ${stats.frameAgeMs===null?'—':Math.round(stats.frameAgeMs)+'ms at reveal'}`,`API time    ${stats.providerMs===null?'—':Math.round(stats.providerMs)+'ms'}`,`API calls   ${stats.apiCalls}`,`reveals     ${stats.reveals}`,`eyes        ${stats.eyes}`,`tracking    ${stats.trackerMs===undefined?'—':Math.round(stats.trackerMs)+'ms · worker'}`,`eye age     ${stats.eyeSampleAt===undefined?'—':Math.round(performance.now()-stats.eyeSampleAt)+'ms'}`,`renderer    ${renderer.backend}`,`lamps       ${renderer.lampsReady?'warped':'overlay'}`,`voice rings ${(renderer.ripples||[]).length} · ${Math.round((renderer.speechPulse||0)*100)}%`,`audio       ${muted?'muted':audio.status} · ${stats.sound}`,`wake lock   ${wakeLock.status}`,`last error  ${stats.error}`].join('\n');$('debugEvents').textContent=events.join('\n')}
 function playActiveCue(){
  if(muted||!activeCue||activeCue.played||performance.now()>=activeCue.until)return;
- const result=audio.say(activeCue.id);stats.sound=`whisper ${activeCue.id}: ${result}`;
+ const result=audio.say(activeCue.id,activeCue.clipSeconds);stats.sound=`whisper ${activeCue.id}: ${result}`;
  if(result===activeCue.id){activeCue.played=true;log(`Whisper played: ${activeCue.id}`)}
  updateAudioPrompt();updateDebug();
 }
-function cue(text,id,duration){
- activeCue={id,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
+function cue(text,id,duration,clipSeconds){
+ activeCue={id,clipSeconds,played:false,until:performance.now()+duration};$('ritualText').textContent=text;$('ritualText').hidden=!config.texts;
  if(id==='opening'||id==='come'||id==='here'){
   approachPulse?.cancel();
   const flashes=renderer.reduced?[{opacity:1},{opacity:.85,offset:.45},{opacity:1}]:approachBlinks(duration);
@@ -54,7 +54,10 @@ function cue(text,id,duration){
 async function approach(signal){
  log('Approach · 2s lead-in');await delay(startDelayMs,signal);
  const prompts={opening:'Psst. Täällä peilissä. Tule tänne.',come:'Tule lähemmäksi.',here:'Katso tänne.'};
- let speakingUntil=0,nextPromptAt=0;
+ // The first word of opening.mp3 ends before its next phrase starts.
+ cue('Psst.','opening',psstMs,psstMs/1000);
+ await delay(psstMs+psstBeatMs,signal);
+ let speakingUntil=performance.now(),nextPromptAt=speakingUntil;
  while(true){
   const now=performance.now(),near=run.facePresent&&lastFace?.width>=config.closeWidth,looking=run.facePresent&&bothEyesVisible(lastFace,eye=>renderer.projectPoint(eye))&&headFacing();
   const id=near?(looking?null:'here'):(looking?'come':'opening');

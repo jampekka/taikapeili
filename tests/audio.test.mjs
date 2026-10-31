@@ -23,6 +23,7 @@ try{
  const audio=new HorrorAudio();
  const unlocked=audio.unlock();assert.equal(audio.context.state,'running');assert.equal(audio.status,'loading samples','Running context is not enough: all clips must decode');assert.equal(audio.say('come'),'samples loading');
  release();await unlocked;assert.equal(audio.ready,true);assert.equal(audio.status,'running');assert.equal(audio.say('opening'),'opening');assert.equal(audio.say('here'),'here');assert.equal(audio.say('come'),'come');assert.equal(audio.say('secret'),'secret');assert.equal(audio.say('look'),'look');assert.equal(audio.play(),'scare');assert.equal(audio.laugh(),'laugh');assert.equal(audio.warning(),'warning');assert.equal(audio.warning('secret'),'warningPrivate');assert.equal(started.length,9);
+ assert.equal(audio.say('opening',.65),'opening');assert.deepEqual(startArgs.at(-1),[0,0,.65],'Psst plays only the first word of the opening recording');
  assert.equal(audio.play(.45),'scare');assert.deepEqual(startArgs.at(-1),[0,0,.45],'Second scare truncates the cached scream to 450 ms');
  assert.deepEqual(fades.slice(-2),[[1,.45-.04],[0,.45]],'Short second scare fades out instead of cutting abruptly');
  assert.equal(audio.play(),'scare');assert.deepEqual(startArgs.at(-1),[],'Normal scare still plays the complete scream');

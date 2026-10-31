@@ -55,6 +55,6 @@ export class HorrorAudio {
  // Speech and laugh sit about 4 dB lower to preserve the scream's contrast.
  warning(ending='invite'){return this.playSample(ending==='secret'?'warningPrivate':'warning','instruction',.57)}
  laugh(){return this.playSample('laugh','laugh',.54)}
- say(id){return this.playSample(id,'whisper',.54)}
+ say(id,duration){return this.playSample(id,'whisper',.54,duration)}
  play(duration,scream='scare'){this.stop('whisper');return this.playSample(Object.hasOwn(SCREAMS,scream)?scream:'scare','scare',1,duration)}
 }
