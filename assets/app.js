@@ -220,6 +220,12 @@ function persistSettings(){
  $('effectsStatus').textContent=saved?'Saved on this device.':'Changes last until reload: device storage is unavailable.';
 }
 const effectsPanel=$('effectsPanel');
+$('openDebug').textContent=debug?'Hide debug settings':'Debug settings';
+$('openDebug').addEventListener('click',()=>{
+ const target=new URL(location.href);
+ if(debug)target.searchParams.delete('debug');else target.searchParams.set('debug','1');
+ location.assign(target.href);
+});
 function syncEffects(){
  renderer.strength=config.morph;
  for(const control of [...EFFECT_CONTROLS,...CAMERA_CONTROLS]){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=control.key==='cameraZoom'?config[control.key].toFixed(2)+'×':Math.round(config[control.key]*100)+'%'}
