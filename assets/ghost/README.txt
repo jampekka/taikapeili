@@ -14,8 +14,8 @@ NumPy, SciPy, ffmpeg). Each is silent 8s / 24fps H.264/yuv420p, periodic motion.
 The real PNG alpha cutout is always drawn using normal blending. Video motion
 is clipped over that cutout, so black/missing video cannot hide the head.
 The head fills the centre of the mirror, with bounded native hover and small
-rounded glowing eyes with pointed ends and a subtle +/-2.5% zoom cycle. Eye fixations last about 3.4s with 140ms gaze shifts.
-Opacity follows the live speech analyser with 700ms attack / 1500ms release.
+tiny round glowing eye points and a subtle +/-2.5% zoom cycle. Eye fixations last about 3.4s with 140ms gaze shifts.
+Opacity follows the live speech analyser with an 8-second exponential sound-level smoothing constant.
 Actual whisper playback also shows it outside automatic sequence states. Ghost defaults migrate once to
 revision 3 (enabled, 90% opacity, 115% size); subsequent operator edits persist.
 
@@ -33,3 +33,6 @@ The native ghost canvas now feeds the main renderer before each live frame.
 Camera, ghost (including its eyes), and lamps share identical morph/ripple/RGB
 sample coordinates in WebGL and the CPU fallback. The ghost eye anchor is
 projected through the green-channel warp for the startle placement.
+
+Eyes and glow are painted into the head layer before its single shared opacity
+is applied, so they fade exactly with the apparition instead of overdraw.

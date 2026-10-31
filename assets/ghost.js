@@ -17,7 +17,7 @@ export function ghostVisible(state,hasCue,preview=false,speaking=false){
  return preview||state==='running'||state==='approach'&&hasCue;
 }
 export function smoothGhostVoice(previous,level,dt){
- const sample=Math.max(0,Math.min(1,level||0)),windowMs=sample>previous?700:1500;
+ const sample=Math.max(0,Math.min(1,level||0)),windowMs=8000;
  return previous+(sample-previous)*(1-Math.exp(-Math.max(0,dt)/windowMs));
 }
 export function ghostMotion(now,amount=1){
@@ -69,12 +69,12 @@ export class GhostOverlay {
   this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
   this.opacity=0;this.voiceEnvelope=0;this.target=null;this.lastAt=null;this.video.pause();this.playing=false;
  }
- draw(now,{visible=false,blackout=false,voice=0,preview=false,opacity=.9,size=1.15,hover=1,eyeGlow=1,style='soft'}={}){
+ draw(now,{visible=false,blackout=false,voice=0,opacity=.9,size=1.15,hover=1,eyeGlow=1,style='soft'}={}){
   this.setStyle(style);
   if(blackout||this.suppressed){this.clear();return}
   const dt=this.lastAt===null?33:Math.min(250,Math.max(0,now-this.lastAt));this.lastAt=now;
   this.voiceEnvelope=smoothGhostVoice(this.voiceEnvelope,visible?voice:0,dt);
-  const voiceOpacity=preview&&visible?1:1-Math.exp(-Math.max(0,this.voiceEnvelope-.002)*14);
+  const voiceOpacity=1-Math.exp(-Math.max(0,this.voiceEnvelope-.002)*14);
   const desired=opacity*voiceOpacity;
   this.opacity+=(desired-this.opacity)*(1-Math.exp(-dt/(visible?90:180)));
   if(this.opacity<.003&&!visible){if(this.playing||this.target)this.clear();return}
@@ -99,24 +99,26 @@ export class GhostOverlay {
    layer.globalCompositeOperation='source-atop';layer.globalAlpha=.35;
    layer.drawImage(this.video,0,0,512,640);
   }
+  const styleInfo=GHOST_STYLES[this.style];
+  if(eyeGlow>0){
+   // Paint the tiny points and their glow into the head at full alpha. The
+   // completed apparition gets ONE opacity below, so eyes cannot fade ahead.
+   layer.save();layer.globalAlpha=1;layer.globalCompositeOperation='source-over';
+   for(const eye of styleInfo.eyeX){
+    const ex=(eye+gaze.x)*512,ey=(eyeY+gaze.y)*640,radius=512*.003;
+    const haloRadius=512*.02*eyeGlow,halo=layer.createRadialGradient(ex,ey,0,ex,ey,haloRadius);
+    halo.addColorStop(0,'rgba(225,250,255,.85)');halo.addColorStop(.2,'rgba(170,230,255,.5)');halo.addColorStop(1,'rgba(130,200,255,0)');
+    layer.fillStyle=halo;layer.beginPath();layer.ellipse(ex,ey,haloRadius,haloRadius,0,0,Math.PI*2);layer.fill();
+    layer.fillStyle='#fff';
+    layer.beginPath();layer.ellipse(ex,ey,radius,radius,0,0,Math.PI*2);layer.fill();
+   }
+   layer.restore();
+  }
   ctx.save();ctx.globalAlpha=this.opacity;ctx.globalCompositeOperation='source-over';
   ctx.shadowColor='rgba(0,0,0,.65)';ctx.shadowBlur=layout.width*.035;
   const cx=layout.x+layout.width/2+motion.x*layout.width,cy=layout.y+layout.height/2+motion.y*layout.height;
   ctx.translate(cx,cy);ctx.rotate(motion.rotation);ctx.scale(motion.scale,motion.scale);
   ctx.drawImage(this.layer,-layout.width/2,-layout.height/2,layout.width,layout.height);
-  const styleInfo=GHOST_STYLES[this.style];
-  if(eyeGlow>0){
-   ctx.shadowColor='#b5eaff';ctx.shadowBlur=layout.width*.025*eyeGlow;
-   for(const eye of styleInfo.eyeX){
-    const ex=(eye+gaze.x-.5)*layout.width,ey=(eyeY+gaze.y-.5)*layout.height;
-    const rx=layout.width*.023,ry=rx*2;
-    ctx.beginPath();ctx.moveTo(ex-rx,ey);ctx.quadraticCurveTo(ex,ey-ry,ex+rx,ey);ctx.quadraticCurveTo(ex,ey+ry,ex-rx,ey);ctx.closePath();
-    ctx.fillStyle='#e0f7ff';ctx.fill();
-    ctx.shadowBlur=layout.width*.008*eyeGlow;ctx.fillStyle='#fff';
-    ctx.beginPath();ctx.ellipse(ex,ey,rx*.45,rx*.45,0,0,Math.PI*2);ctx.fill();
-    ctx.shadowBlur=layout.width*.025*eyeGlow;
-   }
-  }
   ctx.restore();
   // Align the scare to the actual moving eyes, including hover and gaze shift.
   const px=((styleInfo.eyeX[0]+styleInfo.eyeX[1])/2+gaze.x-.5)*layout.width*motion.scale,py=(eyeY+gaze.y-.5)*layout.height*motion.scale;

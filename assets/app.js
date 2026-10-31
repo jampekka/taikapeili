@@ -27,7 +27,7 @@ let ghostPreviewUntil=0;
 const ghost=new GhostOverlay($('ghost'),{reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 function drawGhost(now){
  const visible=!!source&&config.ghostEnabled&&!ghost.suppressed&&ghostVisible(run.state,!!activeCue,debug&&now<ghostPreviewUntil,audio.speaking);
- ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.reduced?audio.speechLevel():renderer.speechPulse,preview:debug&&now<ghostPreviewUntil,hover:config.ghostHover,eyeGlow:config.ghostEyeGlow,opacity:config.ghostOpacity,size:config.ghostSize,style:config.ghostStyle});
+ ghost.draw(now,{visible,blackout:run.state==='reveal',voice:renderer.reduced?audio.speechLevel():renderer.speechPulse,hover:config.ghostHover,eyeGlow:config.ghostEyeGlow,opacity:config.ghostOpacity,size:config.ghostSize,style:config.ghostStyle});
 }
 const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),beforeDraw:drawGhost,ghostSource:()=>ghost.opacity>.003?ghost.canvas:null,lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:()=>{$('ghost').dataset.rendered=String(renderer.ghostReady);renderer.ghostTarget=ghost.target?(renderer.ghostReady?renderer.projectPoint(ghost.target):ghost.target):null;lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
 renderer.strength=config.morph;

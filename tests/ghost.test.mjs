@@ -20,22 +20,28 @@ for(const [w,h] of [[768,1024],[1024,768],[375,812]]){
  if(w===768)assert.ok(r.height*.72/h>.75,'Large head on a portrait iPad');
 }
 // Missing/black iOS video still leaves the alpha cutout visible in normal blend.
-let cleared=0,drawn=0,paused=true;const paints=[];
-const context={translate(){},rotate(){},scale(){},beginPath(){},moveTo(){},quadraticCurveTo(){},closePath(){},ellipse(){},fill(){},clearRect(){cleared++},save(){},restore(){},drawImage(image){drawn++;paints.push({image,blend:this.globalCompositeOperation,alpha:this.globalAlpha})}};
+let cleared=0,drawn=0,paused=true;const paints=[],eyePoints=[];
+const context={createRadialGradient(){return {addColorStop(){}}},translate(){},rotate(){},scale(){},beginPath(){},moveTo(){},quadraticCurveTo(){},closePath(){},ellipse(x,y,rx,ry){eyePoints.push({context:this,alpha:this.globalAlpha,rx,ry,fill:this.fillStyle})},fill(){},clearRect(){cleared++},save(){},restore(){},drawImage(image){drawn++;paints.push({image,blend:this.globalCompositeOperation,alpha:this.globalAlpha})}};
 globalThis.Image=class{complete=true;naturalWidth=1280;decode(){return Promise.resolve()}};
 globalThis.document={createElement(tag){return tag==='canvas'?{getContext(){return {...context}}}:{readyState:2,get paused(){return paused},setAttribute(){},addEventListener(){},play(){paused=false;return Promise.resolve()},pause(){paused=true}}}};
 const canvas={width:768,height:1024,getContext(){return context},getBoundingClientRect(){return {width:768,height:1024}}};
 const ghost=new GhostOverlay(canvas);await ghost.prepare('soft');
 ghost.draw(0,{visible:true,voice:.4});ghost.draw(100,{visible:true,voice:.4});
 const earlyOpacity=ghost.opacity;for(let at=200;at<=1000;at+=100)ghost.draw(at,{visible:true,voice:.4});await Promise.resolve();
-assert.ok(drawn>0);assert.ok(ghost.target);assert.ok(earlyOpacity<ghost.opacity&&ghost.opacity>.8,'Long voice window fades in to a clearly visible head');
-const speakingOpacity=ghost.opacity;for(let at=1100;at<=1800;at+=100)ghost.draw(at,{visible:true,voice:0});assert.ok(ghost.opacity<speakingOpacity&&ghost.opacity>speakingOpacity*.5,'Short pauses fade gently instead of flickering');
+assert.ok(drawn>0);assert.ok(ghost.target);assert.ok(earlyOpacity<ghost.opacity&&ghost.opacity>.2&&ghost.opacity<.5,'An eight-second voice window leaves the apparition still slowly fading in at one second');
+for(let at=1100;at<=8000;at+=100)ghost.draw(at,{visible:true,voice:.4});
+assert.ok(ghost.opacity>.85,'Sustained speech eventually brings the ghost fully forward');
+assert.ok(eyePoints.length>0&&eyePoints.every(p=>p.context!==context&&p.alpha===1),'Eyes are part of the head layer, never a separately faded overdraw');
+const cores=eyePoints.filter(p=>p.fill==='#fff');
+assert.ok(cores.length>0&&cores.every(p=>p.rx===p.ry&&p.rx<2),'Eyes are tiny round points with no almond outline');
+assert.ok(eyePoints.some(p=>typeof p.fill==='object'&&p.rx>2),'A soft radial halo surrounds each point');
+const speakingOpacity=ghost.opacity;for(let at=8100;at<=8800;at+=100)ghost.draw(at,{visible:true,voice:0});assert.ok(ghost.opacity<speakingOpacity&&ghost.opacity>speakingOpacity*.5,'Short pauses fade gently instead of flickering');
 assert.ok(paints.some(p=>p.image===ghost.image&&p.blend==='source-over'&&p.alpha===1),'Real alpha cutout is always underneath the video');
 assert.ok(paints.some(p=>p.image===ghost.video&&p.blend==='source-atop'&&p.alpha<.5),'Video cannot replace or erase the cutout');
 assert.ok(paints.some(p=>p.image===ghost.layer&&p.blend==='source-over'),'Foreground uses normal alpha, not screen blending');
-ghost.draw(1801,{visible:true,blackout:true});assert.equal(ghost.target,null);assert.equal(ghost.opacity,0);assert.ok(cleared>0);
-ghost.setPhase('reveal');for(const phase of ['after','instruction','finished','idle']){ghost.setPhase(phase);ghost.draw(1900,{visible:true,voice:1,preview:true});assert.equal(ghost.opacity,0,'Post-startle suppression survives ending speech, idle and debug preview');assert.equal(ghost.target,null)}
-ghost.setPhase('approach');ghost.draw(2000,{visible:true,voice:.4});assert.equal(ghost.suppressed,false);assert.ok(ghost.opacity>0,'Only a fresh sequence releases suppression');
+ghost.draw(8801,{visible:true,blackout:true});assert.equal(ghost.target,null);assert.equal(ghost.opacity,0);assert.ok(cleared>0);
+ghost.setPhase('reveal');for(const phase of ['after','instruction','finished','idle']){ghost.setPhase(phase);ghost.draw(8900,{visible:true,voice:1,preview:true});assert.equal(ghost.opacity,0,'Post-startle suppression survives ending speech, idle and debug preview');assert.equal(ghost.target,null)}
+ghost.setPhase('approach');ghost.draw(9000,{visible:true,voice:.4});ghost.draw(9100,{visible:true,voice:.4});assert.equal(ghost.suppressed,false);assert.ok(ghost.opacity>0,'Only a fresh sequence releases suppression');
 const reduced=new GhostOverlay(canvas,{reduced:true});reduced.draw(0,{visible:true});reduced.draw(500,{visible:true});assert.equal(reduced.playing,false,'Reduced motion uses the still');
 const app=await readFile(new URL('../assets/app.js',import.meta.url),'utf8');
 const prepare=app.slice(app.indexOf('function beforeReveal('),app.indexOf('async function reveal('));
@@ -51,11 +57,11 @@ let drawnOptions;
 const view=vm.createContext({source:{},config:{ghostEnabled:true,ghostOpacity:.9,ghostSize:1.15,ghostStyle:'soft'},run:{state:'idle'},debug:false,activeCue:null,ghostPreviewUntil:0,audio:{speaking:true},renderer:{speechPulse:0},ghostVisible,ghost:{draw(now,options){drawnOptions=options}}});
 vm.runInContext(drawRoutine+';drawGhost(0)',view);assert.equal(drawnOptions.visible,true,'Actual playback shows the ghost even during silent syllable gaps and outside a sequence');
 
-let envelope=0;for(let i=0;i<70;i++)envelope=smoothGhostVoice(envelope,.4,10);
-assert.ok(Math.abs(envelope-.4*(1-Math.exp(-1)))<1e-10,'700ms attack is independent of frame rate');
+let envelope=0;for(let i=0;i<800;i++)envelope=smoothGhostVoice(envelope,.4,10);
+assert.ok(Math.abs(envelope-.4*(1-Math.exp(-1)))<1e-10,'Eight-second smoothing is independent of frame rate');
 assert.equal(smoothGhostVoice(.3,0,0),.3);
-assert.ok(smoothGhostVoice(.3,0,1000)>.15,'Release uses a long 1.5s window');
-assert.ok(smoothGhostVoice(envelope,0,10000)<.001,'Sustained silence fades to transparent');
+assert.ok(smoothGhostVoice(.3,0,1000)>.25,'Release uses the same long eight-second window');
+assert.ok(smoothGhostVoice(envelope,0,80000)<.001,'Sustained silence fades to transparent');
 let minZoom=2,maxZoom=0;
 for(let now=0;now<100000;now+=137){const pose=ghostMotion(now);assert.ok(Math.abs(pose.x)<=.016&&Math.abs(pose.y)<=.016&&Math.abs(pose.rotation)<=.008);assert.ok(pose.scale>=.975&&pose.scale<=1.025);minZoom=Math.min(minZoom,pose.scale);maxZoom=Math.max(maxZoom,pose.scale);const gaze=ghostGaze(now);assert.ok(Math.abs(gaze.x)<=.0035&&Math.abs(gaze.y)<=.002)}
 assert.ok(maxZoom-minZoom>.049,'Head visibly breathes in and out over a bounded 5% zoom range');
