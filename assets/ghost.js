@@ -22,7 +22,7 @@ export function smoothGhostVoice(previous,level,dt){
 }
 export function ghostMotion(now,amount=1){
  const t=now/1000;
- return {x:amount*(.012*Math.sin(t*.73)+.004*Math.sin(t*.31+1)),y:amount*(.013*Math.sin(t*.59+.7)+.003*Math.sin(t*.9)),rotation:amount*.008*Math.sin(t*.39),scale:1+amount*.004*Math.sin(t*.81)};
+ return {x:amount*(.012*Math.sin(t*.73)+.004*Math.sin(t*.31+1)),y:amount*(.013*Math.sin(t*.59+.7)+.003*Math.sin(t*.9)),rotation:amount*.008*Math.sin(t*.39),scale:1+amount*.025*Math.sin(t*.57)};
 }
 export function ghostGaze(now){
  // Brief, shared saccades between several-second fixations; never a random walk.
@@ -40,7 +40,7 @@ export function ghostLayout(width,height,size=1.15){
 export class GhostOverlay {
  constructor(canvas,{reduced=false}={}){
   this.canvas=canvas;this.ctx=canvas.getContext('2d');this.reduced=reduced;
-  this.opacity=0;this.voiceEnvelope=0;this.suppressed=false;this.lastAt=null;this.lastDraw=-Infinity;this.target=null;this.playing=false;
+  this.opacity=0;this.voiceEnvelope=0;this.suppressed=false;this.lastAt=null;this.target=null;this.playing=false;
   this.image=new Image();
   this.layer=document.createElement('canvas');this.layer.width=512;this.layer.height=640;
   this.layerContext=this.layer.getContext('2d');
@@ -79,7 +79,6 @@ export class GhostOverlay {
   this.opacity+=(desired-this.opacity)*(1-Math.exp(-dt/(visible?90:180)));
   if(this.opacity<.003&&!visible){if(this.playing||this.target)this.clear();return}
   if(visible)this.play();
-  if(now-this.lastDraw<1000/30)return;this.lastDraw=now;
   const rect=this.canvas.getBoundingClientRect(),h=Math.min(960,Math.round(rect.height)),w=Math.round(h*rect.width/Math.max(1,rect.height));
   if(w<1||h<1)return;
   if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h}
@@ -110,11 +109,11 @@ export class GhostOverlay {
    ctx.shadowColor='#b5eaff';ctx.shadowBlur=layout.width*.025*eyeGlow;
    for(const eye of styleInfo.eyeX){
     const ex=(eye+gaze.x-.5)*layout.width,ey=(eyeY+gaze.y-.5)*layout.height;
-    const rx=layout.width*.023,ry=layout.height*.006;
+    const rx=layout.width*.023,ry=rx*2;
     ctx.beginPath();ctx.moveTo(ex-rx,ey);ctx.quadraticCurveTo(ex,ey-ry,ex+rx,ey);ctx.quadraticCurveTo(ex,ey+ry,ex-rx,ey);ctx.closePath();
     ctx.fillStyle='#e0f7ff';ctx.fill();
     ctx.shadowBlur=layout.width*.008*eyeGlow;ctx.fillStyle='#fff';
-    ctx.beginPath();ctx.ellipse(ex,ey,rx*.32,ry*.38,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(ex,ey,rx*.45,rx*.45,0,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=layout.width*.025*eyeGlow;
    }
   }

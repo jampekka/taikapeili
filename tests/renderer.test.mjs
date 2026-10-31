@@ -97,3 +97,27 @@ assert.equal(reads,1,'Unchanged lamps have no per-frame pixel readback');
 cache.lamps.lampRevision++;MirrorRenderer.prototype.lampPixels.call(cache,2,2);assert.equal(reads,2,'A resized lamp layout refreshes the texture cache');
 MirrorRenderer.prototype.lampPixels.call(cache,3,2);assert.equal(reads,3,'A changed CPU render size refreshes the texture cache');
 console.log('PASS: lamps show against darkness, share the RGB warp, preserve crop/blackout and cache their pixels');
+
+// The apparition is composited BEFORE lamps, through their exact sample points.
+const ghostPixels=new Uint8ClampedArray(w*h*4);
+for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(Math.hypot(x-w*.23,y-h*.4)<7){const i=(y*w+x)*4;ghostPixels.set([255,255,255,210],i)}
+const haunted={scratch:{width:w,height:h},sctx:darkCtx,ctx:{drawImage(){}},ghostCanvas:{},ghostPixels:()=>ghostPixels};
+let plainGhost;
+for(const cover of [[1,1],[.55,1],[1,.65]]){
+ MirrorRenderer.prototype.drawCPU.call(haunted,image,w,h,{cover,power:0});
+ if(!plainGhost)plainGhost=output.slice();else assert.deepEqual(output,plainGhost,'Ghost remains in mirror space across camera crops');
+}
+assert.ok(plainGhost.some((v,i)=>i%4!==3&&v===210),'Ghost alpha is composited over the camera');
+assert.equal(haunted.ghostReady,true,'Only a completed composite replaces the native ghost');
+const ghostView={cover:[.6,1],power:.025,time:2,aspect:w/h,speechPower:.455,sources:[[.04,.4]],ripples:[[.12,.1,.04,.4]]};
+MirrorRenderer.prototype.drawCPU.call(haunted,image,w,h,ghostView);
+assert.notDeepEqual(output,plainGhost,'Ghost physically shares morphing and travelling waves');
+assert.ok(output.some((v,i)=>i%4===0&&(v!==output[i+1]||v!==output[i+2])),'Ghost also splits RGB, including its eyes');
+haunted.ghostCanvas=null;haunted.ghostPixels=()=>null;
+MirrorRenderer.prototype.drawCPU.call(haunted,image,w,h,ghostView);
+assert.ok(output.every((v,i)=>v===(i%4===3?255:0)),'After-startle blank ghost leaves no stale texture or RGB halo');
+const order=[];
+const ordered={...live,beforeDraw(){order.push('paint')},ghostSource(){order.push('source');return image},drawCPU(){order.push('warp')}};
+MirrorRenderer.prototype.draw.call(ordered,20000);
+assert.deepEqual(order,['paint','source','warp'],'Paint hover and eyes before sampling the shared warp in the same frame');
+console.log('PASS: ghost alpha, screen placement, live RGB morph/ripples, hidden tail and same-frame render ordering');

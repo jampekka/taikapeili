@@ -56,7 +56,9 @@ assert.ok(Math.abs(envelope-.4*(1-Math.exp(-1)))<1e-10,'700ms attack is independ
 assert.equal(smoothGhostVoice(.3,0,0),.3);
 assert.ok(smoothGhostVoice(.3,0,1000)>.15,'Release uses a long 1.5s window');
 assert.ok(smoothGhostVoice(envelope,0,10000)<.001,'Sustained silence fades to transparent');
-for(let now=0;now<100000;now+=137){const pose=ghostMotion(now);assert.ok(Math.abs(pose.x)<=.016&&Math.abs(pose.y)<=.016&&Math.abs(pose.rotation)<=.008);const gaze=ghostGaze(now);assert.ok(Math.abs(gaze.x)<=.0035&&Math.abs(gaze.y)<=.002)}
+let minZoom=2,maxZoom=0;
+for(let now=0;now<100000;now+=137){const pose=ghostMotion(now);assert.ok(Math.abs(pose.x)<=.016&&Math.abs(pose.y)<=.016&&Math.abs(pose.rotation)<=.008);assert.ok(pose.scale>=.975&&pose.scale<=1.025);minZoom=Math.min(minZoom,pose.scale);maxZoom=Math.max(maxZoom,pose.scale);const gaze=ghostGaze(now);assert.ok(Math.abs(gaze.x)<=.0035&&Math.abs(gaze.y)<=.002)}
+assert.ok(maxZoom-minZoom>.049,'Head visibly breathes in and out over a bounded 5% zoom range');
 assert.notDeepEqual(ghostMotion(0),ghostMotion(3000),'Hover advances without video playback');
 assert.deepEqual(ghostMotion(0,0),{x:0,y:0,rotation:0,scale:1});
 assert.deepEqual(ghostGaze(800),ghostGaze(2200),'Eyes fixate between brief small saccades');

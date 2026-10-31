@@ -1,5 +1,5 @@
 // Map an unwarped, mirrored camera point through the live renderer's green channel.
-// Only the debug box uses this inverse. Detection and run timing remain unchanged.
+// Debug boxes and the ghost eye anchor use this inverse; capture stays unwarped.
 export function ripplePoint(p,{aspect=1,ripples=[],sources=[],speechPower=0,rippleReach=1}={}){
  const smooth=(a,b,v)=>{const t=Math.max(0,Math.min(1,(v-a)/(b-a)));return t*t*(3-2*t)};
  const shortSide=Math.min(aspect,1),edgeDistance=Math.min(Math.min(p.x,1-p.x)*aspect,Math.min(p.y,1-p.y))/shortSide,fade=smooth(0,.015,edgeDistance)*(1-smooth(.17*rippleReach,.44*rippleReach,edgeDistance));
