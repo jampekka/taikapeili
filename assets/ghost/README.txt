@@ -50,9 +50,9 @@ Close width is now a fraction of intrinsic ghost face width (measured across
 the sheet at eye height), default 80%. A closeReference marker migrates saved
 screen-width thresholds to the new default. Detection area in debug Effects
 expands the scan from the displayed crop to the full camera without reframing
-the mirror. Scan geometry travels with the in-flight result. Both complete eye
-outlines must be inside the mirror, including its live warp, or only the full
-Psst opening repeats. A clipped eye during narration returns to approach.
+the mirror. Scan geometry travels with the in-flight result. Complete eye outlines still control ghost tracking, but do not gate narration.
+The first detected face immediately starts the full Psst opening and sequence;
+clipped eyes never restart it.
 
 Position, shortest-path rotation and optional scale share a frame-rate-independent
 EMA (Tracking smoothing, default 0.45 seconds). Valid on-screen eye samples carry

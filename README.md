@@ -10,8 +10,8 @@ enabled. Minimum tracking size defaults to 65%; position, angle and optional
 scale use an adjustable EMA (0.45s by default). Lost eyes hold the last target
 for 1.5s, then ease back to the default pose with the same EMA. Closeness defaults to 80% of
 the actual ghost face width. Old screen-relative thresholds migrate to 80%.
-Until both complete eyes are visible, only the full Psst opening is used. If
-an eye leaves the mirror during pre-startle narration, approach restarts.
+The first detected face starts the full Psst opening immediately. Distance,
+head facing and eye visibility never delay or restart narration.
 
 
 The public mirror is camera driven after the required audio/camera startup. All operator settings, camera framing, effect controls, and debug controls are available ONLY with an explicit `?debug=1` URL. Never add a settings button, secret gesture, or debug entry to the public experience. Public controls are hidden in HTML/CSS and only initialized in debug mode.
@@ -24,7 +24,7 @@ Dummy mode is the default on every page load. It makes no image API calls. The U
 
 ## One run
 
-`assets/run.js` owns the lifecycle. Face presence while armed starts a two-second lead-in, then selects the prompt from distance and attention. Far and facing away: “Psst. Täällä peilissä. Tule tänne.” Far and facing the mirror: “Tule lähemmäksi.” Near and facing away (or with an eye outside the visible view): “Katso tänne.” Near and facing the mirror with both eyes visible: proceed. The same applicable phrase repeats with 1.2 seconds between recordings. Changes apply after the current phrase finishes; there is no mandatory opening or rotation. Distance uses the saved Close face width threshold (default 45% of mirror width). Each approach phrase blinks the bulb frame sharply between 3% and 100% opacity. Three evenly spaced groups each contain three rapid flashes, around 60 ms on and 60 ms off, with dark gaps between groups. The final flash stays on and merges into the normal steady bulbs, with no extra light-up after a dark tail. The group spacing follows each bundled recording’s duration without live audio analysis. Reduced motion retains a gentle 85–100% pulse. Blinking stops when approach ends or is cancelled; reveal blackout still takes priority. Once close enough, both measured eyes are inside the displayed camera crop and projected live view, and the head broadly faces the mirror, the current prompt finishes and the secret/look sequence runs once. A face outside the visible crop keeps the approach prompts repeating. Distance does not gate it again after that point. Debug exposes the threshold as a percentage of mirror width, with a dashed amber target box alongside the green detected-face box when the detection overlay is enabled. The guide height is illustrative; only width controls the gate. One second without a face cancels the sequence. One continuous second without a face rearms it; a continuously present face cannot repeat it. Position and size do not gate the sequence.
+`assets/run.js` owns the lifecycle. The first detected face while armed starts the full “Psst. Täällä peilissä. Tule tänne.” opening immediately, without a lead-in or position, distance, head-facing or eye-visibility gate. When the opening recording finishes, the secret/look sequence proceeds once. Clipped eyes never restart narration. Eye tracking continues to animate and align the ghost, and the saved width setting is only a debug guide. One second without a face cancels a pre-startle sequence and rearms it; a continuously present face cannot repeat it. Lamp blinking remains optional, and reveal blackout retains priority.
 
 ## Tracking and reveal
 
