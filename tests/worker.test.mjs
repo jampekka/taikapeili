@@ -6,6 +6,10 @@ const make=(path,options={})=>new Request(origin+path,options);
 const config=await worker.fetch(make('/api/mirror/config'),env);const configText=await config.text();assert.equal(JSON.parse(configText).configured,false);assert.equal(configText.includes(env.OPENROUTER_API_KEY),false);
 const script=await worker.fetch(make('/app.js'),env);assert.match(script.headers.get('content-type'),/javascript/);assert.equal((await script.text()).includes(env.OPENROUTER_API_KEY),false);
 assert.equal((await worker.fetch(make('/'),env)).status,200);
+const manifestResponse=await worker.fetch(make('/manifest.webmanifest'),env);assert.match(manifestResponse.headers.get('content-type'),/manifest\+json/);
+const manifest=await manifestResponse.json();assert.equal(manifest.display,'fullscreen');assert.equal(manifest.start_url,'/');
+for(const icon of [...manifest.icons,{src:'icon-180.png'}]){const response=await worker.fetch(make('/'+icon.src),env);assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png')}
+
 const warningAudio=await worker.fetch(make('/audio/warning.mp3'),env);assert.equal(warningAudio.status,200);assert.ok((await warningAudio.arrayBuffer()).byteLength>1000);
 const privateAudio=await worker.fetch(make('/audio/warning-private.mp3'),env);assert.equal(privateAudio.status,200);assert.ok((await privateAudio.arrayBuffer()).byteLength>1000);
 const secretAudio=await worker.fetch(make('/audio/secret.mp3'),env);assert.equal(secretAudio.status,200);assert.match(secretAudio.headers.get('content-type'),/audio\/mpeg/);assert.ok((await secretAudio.arrayBuffer()).byteLength>1000,'The new whisper must be bundled, not just referenced');

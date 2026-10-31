@@ -1,3 +1,4 @@
+import {CAMERA_CONTROLS,cameraCrop,frameEyes} from './camera-view.js';
 import {transformSnapshot} from './effects.js';
 import {FaceTracker,faceToMirror,bothEyesVisible,facingMirror} from './tracker.js';
 import {MirrorRenderer} from './renderer.js';
@@ -19,6 +20,7 @@ const stats={detections:0,faces:0,captures:0,reveals:0,apiCalls:0,providerMs:nul
 const lightFrame=$('lights'),lampSource=document.createElement('canvas');new ResizeObserver(()=>layoutLights(lightFrame,lampSource)).observe(lightFrame);
 const events=[],audio=new HorrorAudio();audio.setVolume(config.volume);
 const wakeLock=new ScreenWakeLock(navigator,document,()=>updateDebug());
+const cameraView=document.createElement('canvas'),cameraContext=cameraView.getContext('2d',{alpha:false});
 const frame=document.createElement('canvas'),scan=document.createElement('canvas');
 const ctx=frame.getContext('2d',{alpha:false}),scanCtx=scan.getContext('2d',{alpha:false});
 const renderer=new MirrorRenderer($('atmosphere'),{revealCanvas:$('reflection'),lamps:lampSource,lampOpacity:()=>Number(getComputedStyle(lightFrame).opacity),voiceLevel:()=>audio.speechLevel(),onTick:()=>{lightFrame.dataset.rendered=String(renderer.lampsReady);drawTracking(trackedFaces)},reduced:matchMedia('(prefers-reduced-motion: reduce)').matches});
@@ -86,11 +88,19 @@ async function loadDetector(){
  },error=>log(`Tracking: ${safeError(error)}`));
  try{await detector.ready}catch(error){detector.worker.terminate();detector=null;throw error}log('Face tracker ready · '+detector.backend);
 }
+function updateCameraView(){
+ if(!source)return false;
+ const width=source.videoWidth||source.naturalWidth||source.width,height=source.videoHeight||source.naturalHeight||source.height;if(!width||!height)return false;
+ const rect=glass.getBoundingClientRect(),ratio=rect.width/Math.max(1,rect.height),crop=cameraCrop(width,height,ratio,config);
+ const h=Math.max(1,Math.min(960,Math.round(1280/ratio))),w=Math.max(1,Math.round(h*ratio));
+ if(cameraView.width!==w||cameraView.height!==h){cameraView.width=w;cameraView.height=h}
+ cameraContext.drawImage(source,crop.x,crop.y,crop.width,crop.height,0,0,w,h);return true;
+}
 function capture(){
  const rect=glass.getBoundingClientRect(),ratio=rect.width/Math.max(1,rect.height);frame.height=Math.min(960,Math.round(720/ratio));frame.width=Math.round(frame.height*ratio);
- const width=source.videoWidth||source.naturalWidth||source.width,height=source.videoHeight||source.naturalHeight||source.height;
- if(!width||!height)return false;
- const scale=Math.max(frame.width/width,frame.height/height);ctx.save();ctx.translate(frame.width,0);ctx.scale(-1,1);ctx.drawImage(source,(frame.width-width*scale)/2,(frame.height-height*scale)/2,width*scale,height*scale);ctx.restore();return true;
+ if(!updateCameraView())return false;
+ const width=cameraView.width,height=cameraView.height;
+ const scale=Math.max(frame.width/width,frame.height/height);ctx.save();ctx.translate(frame.width,0);ctx.scale(-1,1);ctx.drawImage(cameraView,(frame.width-width*scale)/2,(frame.height-height*scale)/2,width*scale,height*scale);ctx.restore();return true;
 }
 function latestDummy(face,signal){
  if(signal.aborted)throw new DOMException('Cancelled','AbortError');
@@ -159,11 +169,11 @@ function drawTracking(faces){
 }
 
 function loop(now){
- moveFixture?.(now);
+ moveFixture?.(now);updateCameraView();
  if(source&&run.state!=='reveal'&&now-lastScan>=100&&!detector.busy){
   lastScan=now;
-  const width=source.videoWidth||source.naturalWidth||source.width,height=source.videoHeight||source.naturalHeight||source.height;
-  if(width&&height){const scale=Math.min(1,384/Math.max(width,height));scan.width=Math.round(width*scale);scan.height=Math.round(height*scale);scanCtx.drawImage(source,0,0,scan.width,scan.height);void detector.submit(scan,now,epoch)}
+  const width=cameraView.width,height=cameraView.height;
+  if(width&&height){const scale=Math.min(1,384/Math.max(width,height));scan.width=Math.round(width*scale);scan.height=Math.round(height*scale);scanCtx.drawImage(cameraView,0,0,scan.width,scan.height);void detector.submit(scan,now,epoch)}
  }
  if(source)raf=requestAnimationFrame(loop);
 }
@@ -179,7 +189,7 @@ async function start(){
    }
    video.hidden=true}
   else{const camera=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:false});if(current!==epoch){camera.getTracks().forEach(t=>t.stop());return}stream=camera;video.srcObject=camera;await video.play();source=video}
-  await ready;if(current!==epoch)return;$('startup').hidden=true;mirror.dataset.ready='true';mirror.dataset.phase='live';renderer.start(source);lastScan=-Infinity;raf=requestAnimationFrame(loop);log('Mirror ready · dummy default');
+  await ready;if(current!==epoch)return;$('startup').hidden=true;mirror.dataset.ready='true';mirror.dataset.phase='live';updateCameraView();renderer.start(cameraView);lastScan=-Infinity;raf=requestAnimationFrame(loop);log('Mirror ready · dummy default');
  }catch(error){if(current!==epoch)return;stop();$('startup').hidden=false;$('message').textContent=`Camera/detector: ${safeError(error)}`;$('enable').hidden=false}
  finally{if(current===epoch)starting=false}
 }
@@ -212,20 +222,31 @@ function persistSettings(){
 const effectsPanel=$('effectsPanel');
 function syncEffects(){
  renderer.strength=config.morph;
- for(const control of EFFECT_CONTROLS){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=Math.round(config[control.key]*100)+'%'}
+ for(const control of [...EFFECT_CONTROLS,...CAMERA_CONTROLS]){const input=$('effect-'+control.key);input.value=config[control.key];$('value-'+control.key).value=control.key==='cameraZoom'?config[control.key].toFixed(2)+'×':Math.round(config[control.key]*100)+'%'}
  $('morph').value=Math.round(config.morph*100);
 }
-for(const control of EFFECT_CONTROLS){
+for(const control of [...CAMERA_CONTROLS,...EFFECT_CONTROLS]){
  const label=document.createElement('label'),title=document.createElement('span'),output=document.createElement('output'),input=document.createElement('input');
  title.textContent=control.label;output.id='value-'+control.key;
  input.id='effect-'+control.key;input.type='range';input.min=control.min;input.max=control.max;input.step='.01';input.setAttribute('aria-label',control.label);label.htmlFor=input.id;output.htmlFor=input.id;
- label.append(title,output,input);$('effectControls').append(label);
- input.addEventListener('input',()=>{config[control.key]=Number(input.value);syncEffects();persistSettings()});
+ label.append(title,output,input);$(control.key.startsWith('camera')?'cameraControls':'effectControls').append(label);
+ input.addEventListener('input',()=>{config[control.key]=Number(input.value);if(control.key.startsWith('camera'))resetFramingTracking();syncEffects();persistSettings()});
 }
 syncEffects();
+function resetFramingTracking(){if(!starting)epoch++;trackedFaces=[];lastFace=null;liveEyes=null;liveEyeFocus=null;lastScan=-Infinity;updateCameraView()}
+$('resetCamera').addEventListener('click',()=>{for(const c of CAMERA_CONTROLS)config[c.key]=c.value;resetFramingTracking();syncEffects();persistSettings()});
+$('alignEyes').addEventListener('click',()=>{
+ const width=source?.videoWidth||source?.naturalWidth||source?.width,height=source?.videoHeight||source?.naturalHeight||source?.height;
+ if(!width||!height||!lastFace?.eyes){$('cameraStatus').textContent='Keep your face in view until it is detected, then try again.';return}
+ const rect=glass.getBoundingClientRect(),crop=cameraCrop(width,height,rect.width/rect.height,config),pan=frameEyes(crop,width,height,lastFace.eyes);
+ Object.assign(config,pan);resetFramingTracking();syncEffects();persistSettings();
+ $('cameraStatus').textContent='Framed toward the top camera as far as the crop allows. Increase zoom for more room to pan.';
+});
+$('fullscreenMirror').addEventListener('click',()=>{void enterFullscreen().then(ok=>{$('displayStatus').textContent=ok?'Fullscreen requested.':'For a larger view: Safari → Share → Add to Home Screen, then launch the icon.'})});
 $('openEffects').addEventListener('click',()=>{
  run.reset();renderer.clearReveal();audio.stop();effectsPanel.show();$('openEffects').setAttribute('aria-expanded','true');
 });
+$('cameraSettings').addEventListener('click',()=>$('openEffects').click());
 $('closeEffects').addEventListener('click',()=>effectsPanel.close());
 effectsPanel.addEventListener('close',()=>{audio.stop('whisper');$('openEffects').setAttribute('aria-expanded','false');$('openEffects').focus()});
 $('previewVoice').addEventListener('click',async()=>{await audio.unlock();if(effectsPanel.open)audio.say('opening')});
