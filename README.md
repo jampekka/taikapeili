@@ -20,8 +20,8 @@ Append `?debug=1` to the app URL to adjust volume, camera framing, effects, and 
 Use Node.js 22 or newer. No npm dependencies or API keys are needed.
 
 ```sh
-git clone https://github.com/jampekka/haunted-mirror.git
-cd haunted-mirror
+git clone https://github.com/jampekka/taikapeili.git
+cd taikapeili
 npm run build
 npm run dev
 ```
