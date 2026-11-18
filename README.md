@@ -1,60 +1,37 @@
-## Hard interaction requirement
+# The Other Side — Haunted Mirror
 
-Current framing: debug → Effects → Camera framing has a Detection area slider
-from Screen only to Full camera. It widens the tracking scan independently of
-the displayed/captured crop. Landmark coordinates are mapped back through the
-scan rectangle and current mirror crop, including off-screen eye outlines. The
-ghost follows the eye midpoint and head roll with position/rotation only; its
-configured size does not track viewer distance unless Match eye spacing is
-enabled. Minimum tracking size defaults to 65%; position, angle and optional
-scale use an adjustable EMA (0.45s by default). Lost eyes hold the last target
-for 1.5s, then ease back to the default pose with the same EMA. Closeness defaults to 80% of
-the actual ghost face width. Old screen-relative thresholds migrate to 80%.
-The first detected face starts the full Psst opening immediately. Distance,
-head facing and eye visibility control subsequent prompts and progression.
+A haunted mirror for your browser: Finnish whispers, a ghost that follows your face, rippling reflections, and a final jump scare. Made for a camera-equipped screen, especially an iPad.
 
+**No humans were bothered writing or reading this code.**
 
-The public mirror is camera driven after the required audio/camera startup. All operator settings, camera framing, effect controls, and debug controls are available ONLY with an explicit `?debug=1` URL. Never add a settings button, secret gesture, or debug entry to the public experience. Public controls are hidden in HTML/CSS and only initialized in debug mode.
+## Use it
 
-For a Home Screen debug app, open `/?debug=1` in Safari and add that page to Home Screen. The server supplies a separate debug manifest with a debug start URL and identity; the ordinary app always starts without debug. After tuning in the debug app, use its operator-only “Run mirror” button to reload in public mode using the same app storage. There is no return control; reopening the explicit debug shortcut is required.
+1. Open the mirror, enable sound, and tap **Avaa peili** (“Open the mirror”) when prompted.
+2. Allow camera access and place the screen where it can see your face.
+3. Follow the Finnish whispers: move closer and look into the ghost’s eyes. The rest runs automatically.
+4. Step out of view before the next person approaches.
 
-# The Other Side — Halloween mirror
+On iPad, open it in Safari and choose **Share → Add to Home Screen** for a standalone mirror.
 
-Dummy mode is the default on every page load. It makes no image API calls. The UI is a live mirrored camera, vanity lights and Finnish text/whisper cues. Debug controls are at `?debug=1`. Ending selection, scream sound, optional second scare, volume, morph strength, distance threshold and text/overlay toggles save automatically in this browser and apply on normal page loads. Other browsers/devices keep their own settings. Paid image provider selection is never saved.
+Append `?debug=1` to the app URL to adjust volume, camera framing, effects, and the scare. Settings stay in that browser; other devices have their own settings. After tuning, select **Run mirror** to enter the public view. You can also add the debug page to the Home Screen as a separate operator shortcut.
 
-## One run
+## Run locally
 
-`assets/run.js` owns the lifecycle. The first detected face while armed starts the complete “Psst. Täällä peilissä. Tule tänne.” opening immediately, with no initial delay. Subsequent prompts retain the position-based mechanism: facing the mirror but far away gives “Tule lähemmäksi.”; close but facing away gives “Katso tänne.”; facing away and far, or either eye outside the mirror, repeats the full Psst opening. Prompts repeat with 1.2 seconds between recordings. The secret/look/startle sequence waits until the viewer is close, facing the mirror and has both eyes in view. Every spoken line finishes even if conditions change mid-line. Clipped eyes during narration return to approach only at a line boundary. One second without a face requests cancellation and rearms it, but cancellation waits for the current line to finish; returning before its end allows continuation. A continuously present face cannot repeat the scare. Lamp blinking remains optional, and reveal blackout retains priority.
+Use Node.js 22 or newer. No npm dependencies or API keys are needed.
 
-## Tracking and reveal
+```sh
+git clone https://github.com/jampekka/haunted-mirror.git
+cd haunted-mirror
+npm run build
+npm run dev
+```
 
-A worker processes the full, uncropped camera image at up to 10 Hz, with at most one frame in flight. MediaPipe Face Landmarker 0.10.21 uses video tracking with one face. Browsers without worker WebGL2 or WASM SIMD use the retained face-api detector and landmarks on CPU in the same worker. No extra partial-face recovery is implemented. Presence, two eye positions and the nose tip are consumed. A broad head-facing check uses the nose offset along and below the eye line, normalized by eye spacing and display aspect ratio, with generous bounds. It tolerates head roll, uses both tracker backends, and adds no model, inference or calibration. This is an attention proxy, not a gaze estimate. Debug shows head facing yes/no. Coordinates are mapped into the mirrored display crop once. Debug shows tracker time and eye-result age.
+Open [localhost:4173](http://localhost:4173/) or [local debug mode](http://localhost:4173/?debug=1). Camera access requires HTTPS when opening the app from another device.
 
-When the whispers finish, dummy mode captures the latest camera frame and brightens it with one screen-composite draw, then adds a pale green tint, dark eye sockets and almost-white eyes. Black surroundings stay black. No segmentation, masks, pixel loops, decorative makeup, or additional inference occur in the reveal path. No portrait rotation or intermediate crop can cut away part of the captured image. The current eye midpoint anchors the translation/scale. Image preparation and frame age at reveal are reported separately.
+## How it works
 
-The separate 2D reveal canvas retains the complete snapshot, with the 50 ms zoom overshoot, fading shake, an extra brightness punch over the first 100 ms and the existing brightness surges, and ends at 650 ms. Reduced motion is static. Rectangular perimeter lamps are laid out responsively with a common target pitch, equal spacing on each edge, and unique corner bulbs; they go off during the reveal. The laugh starts 400 ms after the reveal ends. Then the selected quiet ending instruction plays once without visible text, even if the viewer has left. Debug offers “Lähetä seuraava luokseni” and “Älä kerro minusta kenellekään”, with a playback preview. Once the reveal starts, face loss does not interrupt the reveal, laugh or ending. The “Second scare after ending” debug selector (off by default) immediately replays the cached reveal when the selected ending finishes: “Short” uses 450 ms and the first 450 ms of the scream; “Same as original” uses the full 650 ms reveal and complete scream. Neither repeats the laugh. It reuses the original prepared image, focus and target without another capture, processing or alignment step. It finishes despite face loss and blocks another run until complete. Page shutdown or audio interruption still stops playback.
+Face tracking, camera effects, and audio playback happen in the browser. Camera images stay in browser memory. Models, sounds, and artwork are bundled; this version makes no remote image-generation calls.
 
-The live mirror continuously morphs with independent RGB-channel breakup at the saved strength. Speech adds strong local swells at twelve slowly wandering sources spread approximately uniformly around all four edges, with physical perimeter spacing adjusted for portrait or landscape screens, and actual vocal attacks emit paired outward-moving pond rings. All animation is driven by live Web Audio analysis of the playing speech (1024 time-domain samples, about 23 ms at 44.1 kHz, using RMS plus peaks and a soft response curve). There is no precomputed animation, fixed emission clock, or microphone input. A 12 ms attack / 65 ms release envelope drives source swelling on every draw; rising audio levels trigger wave packets with a 65 ms refractory interval. The old wide edge attenuation no longer suppresses the sources: only the outer 1.5% of the shorter screen dimension fades to zero. Rings decay rapidly with both distance and age (1.6 s maximum lifetime). Local source swells retain the earlier width-based Gaussian radius and local fade, independently of propagation settings. Rings propagate about 40% farther before spatial damping, with a gentler temporal decay. Travelling-wave deformation fades between 17% and 44% of the shorter screen dimension from the nearest edge; the innermost central region stays protected. Underlying morphing and RGB breakup continue there. Emitters wander within a small radius of 2.5% of the shorter screen dimension around their perimeter anchors and stay within 6.5% of an edge. Each vocal attack launches waves from an opposing pair, with successive pairs scattered around the frame. Emitted rings keep their birth position. RGB displacement factors are 55%, 100% and 145% for both source swells and rings. The perimeter bulbs and their warm halos are a cached transparent texture composited through the exact same per-channel sampling as the reflection, including idle morph, local swells and travelling ripples. Camera crop/mirroring are undone for lamp placement so the frame stays at the screen edges. The native lamp overlay is hidden after a rendered lamp frame is ready and retained as a startup/failure fallback. Approach blinking still supplies the shared lamp opacity, and the separate reveal canvas blacks out the lamps. Lamp texture uploads/pixel readbacks occur only on resize; CPU and WebGL both render the shared deformation. Only speech drives the analyser; screams and laughter bypass it. Reduced motion disables all added speech deformation. Drawing continues behind the separate unwarped reveal. Debug boxes follow the combined green-channel deformation. WebGL and CPU share the same formulas.
+The live app is served behind Caddy. The original app code and behavior are preserved.
 
-
-## Sound
-
-Debug offers five bundled scream sounds: Original (720 ms), Sharp longer (1.192 s), Sharp, Shrill and Raw (700 ms each). The selection saves in this browser and applies to both reveals and Test sound. The full selected clip plays for the first scare and the full second scare; the short second scare uses a 450 ms excerpt with a 40 ms fade. The laugh waits until both its usual 400 ms post-reveal delay and the selected scream have finished. The Original is edited from “Female Scream Horror” by NeoPhyTe, listed as Public Domain on SoundBible. The leading silence was removed, loudness normalized and the tail faded. Source and edits are documented in `assets/audio/SOURCES.txt`. Finnish whispers remain bundled recordings. Speech and laugh gains are about 4 dB lower than the previous mix (whispers/laugh 0.54, ending 0.57); scream playback stays at unity gain before the common volume control and compressor. The page opens at an audio-start gate. All audio clips are fetched and decoded before the mirror starts. If Web Audio cannot autoplay, the user must click “Avaa peili”. That click requests document fullscreen alongside audio unlocking, before any await. Unsupported or declined fullscreen does not prevent startup. No camera, detection or sequence starts until the context is running and every clip is decoded. Audio needs one page gesture under browser autoplay rules; unlocking retries the current cue if it is still active. Interruption exposes the sound button again; failed clips can be retried. If the audio context becomes unavailable, the mirror pauses and returns to the audio-start gate.
-
-## Remote image generation disabled
-
-The public site runs only the local dummy. Its image-edit endpoint always returns HTTP 410, even when provider keys remain configured in the environment. It does not read provider keys or make upstream requests. The configuration endpoint reports `configured: false`; remote-model debug controls and client upload/generation paths are removed. Bundled speech is pre-generated and makes no runtime provider calls.
-
-## Validation
-
-Build: `node scripts/build.mjs`. Artifact: `node scripts/validate-artifact.mjs`.
-
-Tests: `node tests/approach.test.mjs`, `node tests/audio.test.mjs`, `node tests/overlay.test.mjs`, `node tests/run.test.mjs`, `node tests/portrait.test.mjs`, `node tests/renderer.test.mjs`, `node tests/provider.test.mjs`, `node tests/openai.test.mjs`, `node tests/worker.test.mjs`, `node tests/tracker.test.mjs` and `node tests/effects.test.mjs`.
-
-The run tests cover both completion orders, duplicate detection suppression, exactly one reveal, explicit shutdown, and error recovery. Tracker tests check the camera/display coordinate mapping and single-flight behavior. Effect tests forbid pixel readbacks and check complete-image drawing. The real face detector can be tested with `?test=portrait&debug=1&mute=1`; `?test=empty` must not trigger. Add `&presenceCycle=1` for a controlled disappearance/reappearance fixture. Add `&move=1` to shift the fixture down during the sequence and verify the latest-eye anchor. Add `&delay=12000` in debug to exercise image preparation outlasting the sequence without making paid calls.
-
-Physical iPad camera/speaker behavior and GPU rendering still require device testing. All photos stay in browser memory in dummy mode. The fictional `portrait.jpg` fixture was generated with imagegen. Vendor notices are in `assets/vendor/`.
-
-## Screen awake
-
-While the mirror is open, it requests the Screen Wake Lock API independently of face presence and fullscreen. It releases the lock when hidden or stopped and requests it again when the mirror resumes. Requests are coalesced, and a late grant after shutdown is released. Unsupported or denied requests do not block startup. Debug shows the actual wake-lock status. Device power policies can still deny or release it.
+See the [technical notes](docs/TECHNICAL.md) for behavior and validation details, and the [vendor notices](assets/vendor/NOTICE.txt), [audio sources](assets/audio/SOURCES.txt), and [ghost artwork notes](assets/ghost/README.txt) for bundled asset credits.
