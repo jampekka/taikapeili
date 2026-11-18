@@ -32,6 +32,4 @@ Open [localhost:4173](http://localhost:4173/) or [local debug mode](http://local
 
 Face tracking, camera effects, and audio playback happen in the browser. Camera images stay in browser memory. Models, sounds, and artwork are bundled; this version makes no remote image-generation calls.
 
-The live app is served behind Caddy. The original app code and behavior are preserved.
-
 See the [technical notes](docs/TECHNICAL.md) for behavior and validation details, and the [vendor notices](assets/vendor/NOTICE.txt), [audio sources](assets/audio/SOURCES.txt), and [ghost artwork notes](assets/ghost/README.txt) for bundled asset credits.
