@@ -16,7 +16,7 @@ head facing and eye visibility control subsequent prompts and progression.
 
 The public mirror is camera driven after the required audio/camera startup. All operator settings, camera framing, effect controls, and debug controls are available ONLY with an explicit `?debug=1` URL. Never add a settings button, secret gesture, or debug entry to the public experience. Public controls are hidden in HTML/CSS and only initialized in debug mode.
 
-For a Home Screen debug app, open `/?debug=1` in Safari and add that page to Home Screen. The server supplies a separate debug manifest with a debug start URL and identity; the ordinary app always starts without debug. After tuning in the debug app, use its operator-only “Run mirror” button to reload in public mode using the same app storage. There is no return control; reopening the explicit debug shortcut is required.
+For a Home Screen debug app, open `/?debug=1` in Safari and add that page to Home Screen. The page selects a separate debug manifest with a debug start URL and identity; the ordinary app always starts without debug. After tuning in the debug app, use its operator-only “Run mirror” button to reload in public mode using the same app storage. There is no return control; reopening the explicit debug shortcut is required.
 
 # The Other Side — Halloween mirror
 
@@ -43,7 +43,7 @@ Debug offers five bundled scream sounds: Original (720 ms), Sharp longer (1.192 
 
 ## Remote image generation disabled
 
-The public site runs only the local dummy. Its image-edit endpoint always returns HTTP 410, even when provider keys remain configured in the environment. It does not read provider keys or make upstream requests. The configuration endpoint reports `configured: false`; remote-model debug controls and client upload/generation paths are removed. Bundled speech is pre-generated and makes no runtime provider calls.
+The public site runs only the local dummy. The static app has no image-edit endpoint. The legacy Worker build returns HTTP 410 for image edits and reports `configured: false`; remote-model debug controls and client upload/generation paths are removed. Bundled speech is pre-generated and makes no runtime provider calls.
 
 ## Validation
 

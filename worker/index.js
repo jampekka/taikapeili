@@ -12,11 +12,7 @@ export default {
   if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});
   const path=url.pathname==='/'?'/index.html':url.pathname;
   const asset=BUNDLED_ASSETS[path];if(!asset)return new Response('Not found',{status:404});
-  let bytes=Uint8Array.from(atob(asset[1]),c=>c.charCodeAt(0));
-  if(path==='/index.html'&&url.searchParams.has('debug')){
-   const html=new TextDecoder().decode(bytes).replace('href="manifest.webmanifest"','href="manifest-debug.webmanifest"').replace('name="apple-mobile-web-app-title" content="The Other Side"','name="apple-mobile-web-app-title" content="Mirror Debug"');
-   bytes=new TextEncoder().encode(html);
-  }
+  const bytes=Uint8Array.from(atob(asset[1]),c=>c.charCodeAt(0));
   const headers={'content-type':asset[0],'cache-control':path.startsWith('/models/')?'public, max-age=86400':'no-cache','x-content-type-options':'nosniff','content-length':String(bytes.length),'accept-ranges':'bytes'};
   // Safari requests byte ranges for inline video, including the initial probe.
   const range=request.headers.get('range');

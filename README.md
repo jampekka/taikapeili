@@ -17,13 +17,12 @@ Append `?debug=1` to the app URL to adjust volume, camera framing, effects, and 
 
 ## Run locally
 
-Use Node.js 22 or newer. No npm dependencies or API keys are needed.
+Serve the `assets/` directory with any static web server. Here is an example using Python 3.
 
 ```sh
 git clone https://github.com/jampekka/taikapeili.git
 cd taikapeili
-npm run build
-npm run dev
+python3 -m http.server 4173 --bind 127.0.0.1 --directory assets
 ```
 
 Open [localhost:4173](http://localhost:4173/) or [local debug mode](http://localhost:4173/?debug=1). Camera access requires HTTPS when opening the app from another device.

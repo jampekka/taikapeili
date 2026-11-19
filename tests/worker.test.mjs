@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import worker from '../dist/server/index.js';
 const env={OPENROUTER_API_KEY:'sentinel-server-key',OPENAI_API_KEY:'sentinel-openai-key'};
 const origin='https://mirror.test';
@@ -11,9 +12,24 @@ const manifest=await manifestResponse.json();assert.equal(manifest.display,'full
 const publicPage=await (await worker.fetch(make('/'),env)).text();
 assert.match(publicPage,/id="openEffects" hidden data-operator-control/,'Public page starts with operator controls hidden before JavaScript');
 assert.ok(!publicPage.includes('id="openDebug"'),'No public in-app debug entry');
-assert.ok(publicPage.includes('href="manifest.webmanifest"'));
-const debugPage=await (await worker.fetch(make('/?debug=1'),env)).text();
-assert.ok(debugPage.includes('href="manifest-debug.webmanifest"'),'Explicit debug installs receive the debug manifest');
+const debugPage = await (await worker.fetch(make('/?debug=1'), env)).text();
+assert.equal(debugPage, publicPage, 'Static hosting serves the same HTML in both modes');
+const manifestScript = publicPage.match(/<script>([\s\S]*?)<\/script>/)[1];
+for (const [search, href, title] of [
+  ['', 'manifest.webmanifest', 'The Other Side'],
+  ['?debug=1', 'manifest-debug.webmanifest', 'Mirror Debug'],
+]) {
+  const links = [];
+  const titleMeta = { content: 'The Other Side' };
+  const document = {
+    createElement: () => ({}),
+    querySelector: () => titleMeta,
+    head: { append: link => links.push(link) },
+  };
+  runInNewContext(manifestScript, { document, location: { search }, URLSearchParams });
+  assert.deepEqual(links, [{ rel: 'manifest', href }]);
+  assert.equal(titleMeta.content, title);
+}
 const debugManifest=await (await worker.fetch(make('/manifest-debug.webmanifest'),env)).json();
 assert.equal(debugManifest.start_url,'/?debug=1');assert.notEqual(debugManifest.id,manifest.id,'Operator and public app shortcuts have separate identities');
 for(const icon of [...manifest.icons,{src:'icon-180.png'}]){const response=await worker.fetch(make('/'+icon.src),env);assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png')}
